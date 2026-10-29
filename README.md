@@ -115,14 +115,16 @@ O resultado fica em `dist/Lume-win32-x64/`. Para distribuir, compacte **a pasta 
 - **O aviso:** se houver versão nova, aparece uma janela do Windows com **Atualizar agora**, **Depois**, **Pular esta versão** e **Ver novidades**. Nada é baixado sem você aceitar.
 - **Ao atualizar:**
   1. o Lume baixa o zip da release e confere o tamanho e o SHA-256;
-  2. extrai o zip, fecha e substitui os arquivos da pasta;
-  3. abre de novo e mostra "Lume atualizado para a vX.Y.Z".
+  2. extrai o zip e abre a **versão nova** em "modo atualizador" (sem janela). O Lume antigo só fecha depois que ela confirma que está rodando;
+  3. a versão nova espera o Lume antigo fechar, copia os arquivos por cima e abre o Lume atualizado, que mostra "Lume atualizado para a vX.Y.Z".
   
-  Arquivos que você colocou na pasta, como um `cloudflared.exe`, não são apagados.
-- **Se algo der errado:** você continua na versão atual e recebe um aviso, com a opção de baixar manualmente.
+  Arquivos que você colocou na pasta, como um `cloudflared.exe`, não são apagados. A troca não usa PowerShell nem scripts, padrão que antivírus costumam bloquear.
+- **Se algo der errado:** você continua na versão atual. O aviso aparece na hora ou, se a troca for interrompida, na próxima vez que abrir o Lume, com a opção de baixar manualmente.
+- **Registro:** cada etapa fica em `atualizacao.log`, na pasta de dados do Lume (`%APPDATA%\Lume`). Para abrir, use o ícone da bandeja → **Ver registro de atualização**.
 - **Limitações:**
   - só funciona no `Lume.exe` gerado, não no `npm start`;
-  - a pasta do Lume precisa aceitar escrita, então não funciona dentro de "Arquivos de Programas".
+  - a pasta do Lume precisa aceitar escrita, então não funciona dentro de "Arquivos de Programas";
+  - **quem está na v1.10.0 ou v1.11.0 precisa instalar a v1.11.1 manualmente uma vez.** O atualizador dessas versões não funcionava, e a correção só vale a partir da v1.11.1.
 
 ### Publicar uma versão nova
 

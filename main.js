@@ -6,6 +6,22 @@ const { spawn } = require('child_process');
 const { startServer } = require('./server');
 const updater = require('./updater');
 
+// ---------- modo atualizador ----------
+// A versão nova, extraída na pasta temporária, é aberta com --lume-apply-update para trocar os
+// arquivos da pasta do Lume. Nesse modo não há janela, bandeja nem servidor: copia, reabre e sai.
+if (process.argv.includes('--lume-apply-update')) {
+  const userDataDir = app.getPath('userData');
+  // perfil separado, para não disputar nada com o Lume que ainda está fechando
+  app.setPath('userData', path.join(app.getPath('temp'), 'lume-atualizador-perfil'));
+  updater.runApplyMode({
+    argv: process.argv,
+    userDataDir,
+    execPath: process.execPath,
+    relaunchArgs: process.argv.includes('--no-sandbox') ? ['--no-sandbox'] : [],
+  }).then((code) => app.exit(code), () => app.exit(1));
+  return; // eslint-disable-line no-unreachable -- encerra o carregamento do restante do app
+}
+
 // Desempenho: não reduzir a prioridade do app quando outra janela (ex.: um jogo) está na frente
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
@@ -190,6 +206,7 @@ function createTray() {
     { label: `Lume v${app.getVersion()}`, enabled: false },
     { label: 'Abrir Lume', click: showWindow },
     { label: 'Procurar atualizações', click: () => checkForUpdates({ manual: true }) },
+    { label: 'Ver registro de atualização', click: openUpdateLog },
     { type: 'separator' },
     { label: 'Sair', click: quitApp },
   ]));
@@ -209,6 +226,14 @@ const UPDATE_FIRST_CHECK_MS = 10 * 1000;
 const UPDATE_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const updateStateFile = () => path.join(app.getPath('userData'), 'atualizacao.json');
 const askedThisSession = new Set();
+const updateLogFile = () => path.join(app.getPath('userData'), 'atualizacao.log');
+const updateLog = (msg) => updater.appendLog(updateLogFile(), msg);
+const UPDATE_WORK_DIR = () => path.join(app.getPath('temp'), 'lume-atualizacao');
+
+function openUpdateLog() {
+  if (fs.existsSync(updateLogFile())) shell.openPath(updateLogFile());
+  else dialog.showMessageBox(dialogParent(), { type: 'info', title: 'Atualizações', message: 'Ainda não há registro de atualização.' });
+}
 let updateBusy = false;
 
 function readUpdateState() {
@@ -281,17 +306,27 @@ async function runUpdate(info) {
     return;
   }
   updateBusy = true;
-  const workDir = path.join(app.getPath('temp'), 'lume-atualizacao');
+  const workDir = UPDATE_WORK_DIR();
+  updateLog(`atualizando v${app.getVersion()} -> v${info.version} (pasta: ${appDir})`);
   try {
     fs.rmSync(workDir, { recursive: true, force: true });
     const zip = path.join(workDir, info.name);
-    await updater.download(net.fetch, info, zip, (p) =>
+    const dl = await updater.download(net.fetch, info, zip, (p) =>
       setUpdateProgress(p, `Lume – baixando atualização ${Math.round(p * 100)}%`));
+    updateLog(`download ok: ${dl.bytes} bytes, SHA-256 ${dl.verifiedHash ? 'conferido' : 'não informado na release'}`);
     setUpdateProgress(2, 'Lume – preparando atualização…'); // 2 = barra "indeterminada"
     const newApp = await updater.extract(zip, path.join(workDir, 'novo'));
-    updater.launchReplaceScript({ pid: process.pid, src: newApp, dst: appDir, workDir });
-    quitApp(); // o script espera o Lume fechar, troca os arquivos e abre de novo
+    updateLog('extraído em ' + newApp);
+    // a versão nova assume a troca; só fechamos depois que ela confirmar que está rodando
+    await updater.startApplyProcess({
+      newExe: path.join(newApp, path.basename(process.execPath)),
+      target: appDir, pid: process.pid, workDir, log: updateLog,
+    });
+    writeUpdateState({ ...readUpdateState(), pending: { from: app.getVersion(), to: info.version, at: Date.now() } });
+    updateLog('fechando para o atualizador trocar os arquivos');
+    quitApp();
   } catch (e) {
+    updateLog('FALHA antes de fechar: ' + e.message);
     updateBusy = false;
     setUpdateProgress(-1);
     const { response } = await dialog.showMessageBox(dialogParent(), {
@@ -304,17 +339,41 @@ async function runUpdate(info) {
   }
 }
 
-// Mensagem depois de uma atualização (o script reabre o Lume com --updated ou --update-failed)
-function reportUpdateResult() {
-  if (process.argv.includes('--updated')) {
+// Resultado da última atualização, conferido na abertura seguinte. Não depende de quem reabriu o
+// Lume: se a troca não aconteceu por qualquer motivo, a versão continua a antiga e o aviso aparece.
+async function reportUpdateResult() {
+  const st = readUpdateState();
+  const p = st.pending;
+  if (!p) return;
+  delete st.pending;
+  writeUpdateState(st);
+  if (Date.now() - p.at > 24 * 60 * 60 * 1000) return;
+  if (updater.compareVersions(app.getVersion(), p.to) >= 0) {
+    updateLog(`aberto já na v${app.getVersion()}: atualização concluída`);
     dialog.showMessageBox(dialogParent(), { type: 'info', title: 'Lume', message: `Lume atualizado para a v${app.getVersion()}.` });
-  } else if (process.argv.includes('--update-failed')) {
-    dialog.showMessageBox(dialogParent(), {
-      type: 'warning', title: 'Lume',
-      message: `A atualização não pôde ser aplicada. Você continua na v${app.getVersion()}.`,
-      detail: 'Feche outros programas que possam estar usando a pasta do Lume e tente de novo pelo menu da bandeja (Procurar atualizações), ou baixe a versão nova manualmente.',
-    });
+    return;
   }
+  updateLog(`aberto ainda na v${app.getVersion()}: a atualização para a v${p.to} não foi concluída`);
+  const { response } = await dialog.showMessageBox(dialogParent(), {
+    type: 'warning', title: 'Lume',
+    message: `A atualização para a v${p.to} não foi concluída. Você continua na v${app.getVersion()}.`,
+    detail: 'Tente de novo pelo ícone da bandeja (Procurar atualizações) ou baixe a versão nova manualmente. ' +
+      'O registro da atualização mostra em que etapa parou.',
+    buttons: ['Abrir página de download', 'Ver registro', 'Fechar'], defaultId: 2, cancelId: 2, noLink: true,
+  });
+  if (response === 0) shell.openExternal(`https://github.com/${updater.REPO}/releases/latest`);
+  if (response === 1) openUpdateLog();
+}
+
+// Sobras de atualizações anteriores: arquivos renomeados por estarem em uso e a pasta temporária
+function cleanupAfterUpdate() {
+  if (!updatesSupported()) return;
+  setTimeout(() => {
+    const n = updater.cleanupOldFiles(path.dirname(process.execPath));
+    if (n) updateLog(`${n} arquivo(s) antigo(s) removido(s) da pasta do Lume`);
+    try { fs.rmSync(UPDATE_WORK_DIR(), { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(path.join(app.getPath('temp'), 'lume-atualizador-perfil'), { recursive: true, force: true }); } catch {}
+  }, 15000);
 }
 
 function scheduleUpdateChecks() {
@@ -496,8 +555,9 @@ app.whenReady().then(() => {
 
   createWindow();
   createTray();
-  win.webContents.once('did-finish-load', reportUpdateResult);
+  win.webContents.once('did-finish-load', () => { reportUpdateResult().catch(() => {}); });
   scheduleUpdateChecks();
+  cleanupAfterUpdate();
   app.on('activate', showWindow);
 });
 
