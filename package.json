@@ -1,0 +1,19 @@
+{
+  "name": "lume",
+  "productName": "Lume",
+  "version": "1.7.0",
+  "description": "Compartilhamento de tela com áudio entre amigos (WebRTC), estilo Discord",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "server": "node server.js",
+    "dist": "electron-packager . Lume --platform=win32 --arch=x64 --out=dist --overwrite --icon=build/icon.ico --win32metadata.ProductName=Lume --win32metadata.FileDescription=Lume --win32metadata.CompanyName=Lume --win32metadata.InternalName=Lume"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@electron/packager": "latest",
+    "electron": "latest"
+  }
+}

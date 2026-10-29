@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lume</title>
+<style>
+  :root { --bg:#1e1f22; --panel:#2b2d31; --panel2:#313338; --text:#f2f3f5; --muted:#949ba4; --accent:#5865f2; --accent-h:#4752c4; --red:#da373c; --warn:#f0b232; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; font-family: system-ui, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .wrap { width: min(900px, 100%); }
+  h1 { margin: 0 0 4px; font-size: 26px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .card { background: var(--panel); border-radius: 10px; padding: 22px; display: flex; flex-direction: column; gap: 12px; }
+  .card h2 { margin: 0; font-size: 18px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14px; }
+  label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; display: block; margin-bottom: 4px; }
+  input[type=text], input[type=number] { width: 100%; background: #1e1f22; color: var(--text); border: 1px solid #3b3d44; border-radius: 6px; padding: 9px 10px; font: inherit; }
+  .check { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; color: var(--text); text-transform: none; letter-spacing: 0; }
+  .check input { margin-top: 3px; }
+  button { cursor: pointer; border: 0; border-radius: 6px; padding: 10px 16px; background: var(--accent); color: #fff; font: inherit; font-weight: 600; }
+  button:hover { background: var(--accent-h); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.secondary { background: var(--panel2); }
+  #msg { margin-top: 16px; padding: 12px 14px; border-radius: 8px; background: var(--panel); font-size: 14px; display: none; }
+  #msg.err { display: block; border-left: 4px solid var(--red); }
+  #msg.warn { display: block; border-left: 4px solid var(--warn); }
+  #msg.info { display: block; border-left: 4px solid var(--accent); }
+  #msg button { margin-top: 10px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>✨ Lume</h1>
+  <p class="sub">Compartilhe sua tela com áudio com os amigos.</p>
+
+  <div class="cards">
+    <div class="card">
+      <h2>Criar uma sala (eu hospedo)</h2>
+      <p>Inicia o servidor neste computador. Seus amigos entram pelo link da sala.</p>
+      <div>
+        <label for="port">Porta</label>
+        <input id="port" type="number" min="1024" max="65535" value="3000">
+      </div>
+      <label class="check"><input id="tunnelChk" type="checkbox" checked>
+        <span>Criar link público automaticamente<br><span style="color:var(--muted)">precisa do cloudflared instalado; sem ele, só funciona na sua rede</span></span>
+      </label>
+      <button id="hostBtn">Criar sala</button>
+    </div>
+
+    <div class="card">
+      <h2>Entrar na sala de um amigo</h2>
+      <p>Cole o link que ele te mandou.</p>
+      <div>
+        <label for="url">Link da sala</label>
+        <input id="url" type="text" placeholder="https://....trycloudflare.com/?room=abc123">
+      </div>
+      <button id="joinBtn" class="secondary">Entrar</button>
+    </div>
+  </div>
+
+  <div id="msg"></div>
+</div>
+
+<script>
+'use strict';
+const $ = (s) => document.querySelector(s);
+const api = window.electronAPI;
+
+function show(kind, text, withContinue) {
+  const m = $('#msg');
+  m.className = kind;
+  m.textContent = text;
+  if (withContinue) {
+    m.append(document.createElement('br'));
+    const b = document.createElement('button');
+    b.textContent = 'Continuar mesmo assim';
+    b.onclick = () => api.openHost();
+    m.append(b);
+  }
+}
+function setBusy(busy) {
+  $('#hostBtn').disabled = $('#joinBtn').disabled = busy;
+}
+
+if (!api) {
+  show('err', 'Esta página só funciona dentro do aplicativo Lume.');
+}
+const err = new URLSearchParams(location.search).get('error');
+if (err) show('err', err);
+
+if (api) api.onStatus((text) => show('info', text));
+
+$('#hostBtn').onclick = async () => {
+  setBusy(true);
+  show('info', 'Iniciando o servidor…');
+  const r = await api.hostStart({ port: Number($('#port').value) || 3000, tunnel: $('#tunnelChk').checked });
+  if (!r.ok) {
+    setBusy(false);
+    return show('err', r.error);
+  }
+  if (r.warning) {
+    setBusy(false);
+    return show('warn', 'Sem link público: ' + r.warning + ' Os amigos só conseguirão entrar se estiverem na sua rede.', true);
+  }
+  api.openHost();
+};
+
+$('#joinBtn').onclick = async () => {
+  const url = $('#url').value.trim();
+  if (!url) return show('err', 'Cole o link da sala.');
+  setBusy(true);
+  show('info', 'Conectando…');
+  const r = await api.join(url);
+  if (r && !r.ok) {
+    setBusy(false);
+    show('err', r.error);
+  }
+};
+$('#url').onkeydown = (e) => { if (e.key === 'Enter') $('#joinBtn').click(); };
+</script>
+</body>
+</html>
