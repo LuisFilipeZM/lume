@@ -104,7 +104,7 @@
   </main>
   <footer>
     <button id="shareBtn">🖥️ Compartilhar tela</button>
-    <label><input type="checkbox" id="audioChk" checked> Áudio</label>
+    <label title="Janela: só o som desse aplicativo. Tela inteira: todo o som do PC, menos o do Lume."><input type="checkbox" id="audioChk" checked> Áudio</label>
     <label title="Sons de entrada, saída e compartilhamento"><input type="checkbox" id="soundChk" checked> Sons</label>
     <select id="qualitySel" title="Qualidade">
       <option value="720p30">720p · 30 fps</option>
@@ -438,18 +438,41 @@ $('#shareBtn').onclick = () => (sharing ? stopShare() : startShare());
 
 async function startShare() {
   preset = PRESETS[$('#qualitySel').value];
-  if (window.electronAPI) { // app desktop: escolhe tela/janela no seletor próprio
-    const srcId = await pickSource();
+  const wantAudio = $('#audioChk').checked;
+  const api = window.electronAPI;
+  let srcId = null;
+  let appAudioMode = null; // 'app' = só o aplicativo da janela; 'system' = PC inteiro sem o Lume
+  if (api) { // app desktop: escolhe tela/janela no seletor próprio
+    srcId = await pickSource();
     if (!srcId) return;
-    await window.electronAPI.selectSource(srcId);
+    await api.selectSource(srcId);
+    if (wantAudio && api.startAppAudio) {
+      const r = await api.startAppAudio(srcId).catch((e) => ({ ok: false, error: String(e) }));
+      if (r && r.ok) appAudioMode = r.mode;
+      else console.warn('áudio por aplicativo indisponível:', r && r.error);
+    }
   }
+  const isWindow = !!srcId && srcId.startsWith('window:');
+  // Áudio do sistema (do jeito antigo) só no navegador ou como plano B na tela inteira.
+  // Numa janela nunca: levaria junto o som de outros programas, como o Discord.
+  const useSystemLoopback = wantAudio && !appAudioMode && !isWindow;
   try {
     shareStream = await navigator.mediaDevices.getDisplayMedia({
       video: { width: { ideal: preset.w }, height: { ideal: preset.h }, frameRate: { ideal: preset.fps } },
-      audio: $('#audioChk').checked ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false } : false,
+      audio: useSystemLoopback ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false } : false,
     });
   } catch (e) {
+    if (appAudioMode) api.stopAppAudio();
     return; // usuário cancelou
+  }
+  if (appAudioMode) {
+    try {
+      shareStream.addTrack(await createPcmTrack());
+    } catch (e) {
+      console.warn('falha ao montar o áudio', e);
+      api.stopAppAudio();
+      appAudioMode = null;
+    }
   }
   const vt = shareStream.getVideoTracks()[0];
   vt.contentHint = $('#modeSel').value;
@@ -459,10 +482,16 @@ async function startShare() {
     await vt.applyConstraints({ width: { max: preset.w }, height: { max: preset.h }, frameRate: { max: preset.fps } });
   } catch {}
 
-  if ($('#audioChk').checked && shareStream.getAudioTracks().length === 0) {
-    toast(window.electronAPI
-      ? 'O áudio do sistema não foi capturado (só há suporte no Windows).'
-      : 'O áudio não foi capturado. No Chrome, marque “Compartilhar áudio do sistema/da guia” na janela de seleção.');
+  if (wantAudio && shareStream.getAudioTracks().length === 0) {
+    toast(!api
+      ? 'O áudio não foi capturado. No Chrome, marque “Compartilhar áudio do sistema/da guia” na janela de seleção.'
+      : isWindow
+        ? 'Não consegui capturar só o áudio deste aplicativo (precisa do Windows 10 versão 2004 ou mais novo). A janela será compartilhada sem áudio.'
+        : 'O áudio do PC não foi capturado (só há suporte no Windows).');
+  } else if (appAudioMode === 'app') {
+    toast('Áudio: só o som deste aplicativo.');
+  } else if (appAudioMode === 'system') {
+    toast('Áudio: todo o som do PC, menos o do Lume. Para enviar só um aplicativo, compartilhe a janela dele.');
   }
 
   sharing = true;
@@ -492,6 +521,8 @@ function stopShare() {
   if (previewTrack) previewTrack.stop();
   shareStream = null;
   previewTrack = null;
+  closePcm();
+  if (window.electronAPI && window.electronAPI.stopAppAudio) window.electronAPI.stopAppAudio().catch(() => {});
   removeTile(myId);
   sendWs({ type: 'sharing', on: false });
   playSound('shareOff');
@@ -499,6 +530,76 @@ function stopShare() {
   $('#shareBtn').classList.remove('danger');
   for (const id of ['#audioChk', '#qualitySel', '#codecSel', '#modeSel']) $(id).disabled = false;
   renderPeers();
+}
+
+// ---------- áudio por aplicativo: PCM vindo do app vira uma faixa de áudio do WebRTC ----------
+// O processo principal envia blocos de áudio (48 kHz, estéreo, 16 bits). Um AudioWorklet
+// guarda num buffer curto e toca numa "saída" que vira a faixa enviada aos amigos.
+const PCM_WORKLET = `
+class PcmPlayer extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.cap = 48000;                       // até 1 s guardado
+    this.L = new Float32Array(this.cap);
+    this.R = new Float32Array(this.cap);
+    this.r = 0; this.w = 0; this.n = 0; this.started = false;
+    this.port.onmessage = (e) => {
+      const s = new Int16Array(e.data);
+      for (let i = 0; i + 1 < s.length; i += 2) {
+        if (this.n === this.cap) { this.r = (this.r + 1) % this.cap; this.n--; }
+        this.L[this.w] = s[i] / 32768;
+        this.R[this.w] = s[i + 1] / 32768;
+        this.w = (this.w + 1) % this.cap; this.n++;
+      }
+      if (this.n > 9600) {                  // passou de 200 ms acumulados: descarta o excesso (atraso baixo)
+        const drop = this.n - 4800;
+        this.r = (this.r + drop) % this.cap; this.n -= drop;
+      }
+    };
+  }
+  process(inputs, outputs) {
+    const oL = outputs[0][0], oR = outputs[0][1] || outputs[0][0];
+    if (!this.started) {                    // junta ~40 ms antes de começar, para não picotar
+      if (this.n < 1920) { oL.fill(0); oR.fill(0); return true; }
+      this.started = true;
+    }
+    for (let i = 0; i < oL.length; i++) {
+      if (this.n > 0) {
+        oL[i] = this.L[this.r]; oR[i] = this.R[this.r];
+        this.r = (this.r + 1) % this.cap; this.n--;
+      } else { oL[i] = 0; oR[i] = 0; this.started = false; }
+    }
+    return true;
+  }
+}
+registerProcessor('pcm-player', PcmPlayer);
+`;
+let pcmCtx = null, pcmNode = null;
+
+async function createPcmTrack() {
+  closePcm();
+  pcmCtx = new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
+  const url = URL.createObjectURL(new Blob([PCM_WORKLET], { type: 'application/javascript' }));
+  try { await pcmCtx.audioWorklet.addModule(url); } finally { URL.revokeObjectURL(url); }
+  pcmNode = new AudioWorkletNode(pcmCtx, 'pcm-player', { numberOfInputs: 0, outputChannelCount: [2] });
+  const dest = pcmCtx.createMediaStreamDestination();
+  pcmNode.connect(dest);
+  if (pcmCtx.state === 'suspended') await pcmCtx.resume();
+  return dest.stream.getAudioTracks()[0];
+}
+
+function closePcm() {
+  if (pcmNode) { try { pcmNode.disconnect(); } catch {} pcmNode = null; }
+  if (pcmCtx) { pcmCtx.close().catch(() => {}); pcmCtx = null; }
+}
+
+if (window.electronAPI && window.electronAPI.onAppAudio) {
+  window.electronAPI.onAppAudio((chunk) => {
+    if (!pcmNode || !chunk) return;
+    const u8 = chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk);
+    const ab = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+    pcmNode.port.postMessage(ab, [ab]);
+  });
 }
 
 async function connectToViewer(id) {

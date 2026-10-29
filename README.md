@@ -6,7 +6,7 @@
 
 <p align="center">
   Compartilhe sua tela com áudio com os amigos, no estilo do Discord, sem servidor pago e sem conta.<br>
-  <b>Electron + WebRTC</b> · Windows · v1.8.0
+  <b>Electron + WebRTC</b> · Windows · v1.9.0
 </p>
 
 ---
@@ -20,7 +20,9 @@ Quem só quer **assistir** não precisa instalar nada: o link abre no navegador.
 ## Recursos
 
 - **Salas por link:** crie uma sala e copie o link público com um clique.
-- **Tela e áudio do sistema:** escolha uma tela inteira ou só uma janela. No Windows, o som do PC vai junto automaticamente.
+- **Tela ou janela, com o áudio certo:**
+  - **Janela:** vai junto só o som daquele aplicativo. O Discord e outros programas não vazam para quem assiste.
+  - **Tela inteira:** vai todo o som do PC, menos o do próprio Lume, o que evita eco de quem você está assistindo.
 - **Até 1080p a 60 fps**, com codec H.264 (usa a placa de vídeo) ou VP9.
 - **Vários espectadores e vários compartilhando ao mesmo tempo** (até 12 pessoas por sala).
 - **Prévia antes de assistir:** quando alguém compartilha, os outros veem só uma prévia leve (sem som). Quem quiser assistir clica em **▶ Assistir** e recebe a tela em qualidade total com áudio. O ✕ volta para a prévia, e quem compartilha vê quantas pessoas estão assistindo.
@@ -116,7 +118,7 @@ O Lume é um **projeto pessoal, feito para uso entre amigos de confiança**. Ele
 - **O link é a única proteção.** Não há senha nem aprovação de quem cria a sala: quem tiver o link entra e vê tudo o que for compartilhado. Não publique o link em lugares abertos.
 - **O servidor aceita conexões da rede local.** Qualquer pessoa no mesmo Wi-Fi consegue acessar `http://SEU-IP:3000`.
 - **Seu IP fica visível para quem está na sala.** Como a conexão é direta (P2P), os participantes veem o IP público uns dos outros.
-- **Você pode mostrar mais do que pretende.** Compartilhar a tela inteira expõe notificações, mensagens e outras janelas. O áudio do sistema inclui tudo o que toca no PC, até chamadas e os próprios sons de aviso. Prefira compartilhar só uma janela.
+- **Você pode mostrar mais do que pretende.** Compartilhar a tela inteira expõe notificações, mensagens e outras janelas. O áudio também vai inteiro, incluindo chamadas do Discord e notificações. Prefira compartilhar só uma janela: assim vai apenas a imagem e o som daquele aplicativo.
 
 ### Risco baixo e limitações
 
@@ -124,13 +126,16 @@ O Lume é um **projeto pessoal, feito para uso entre amigos de confiança**. Ele
 - **Links `http://`:** o conteúdo pode ser alterado no caminho. Use sempre o link `https://`.
 - **Credenciais TURN visíveis:** se configuradas, são enviadas a todos os participantes da sala.
 - **Dependências sem versão fixa:** `electron` e o empacotador estão em `latest`.
+- **Módulos nativos de terceiros:** a captura de áudio por aplicativo usa `loopback-capture` (WASAPI) e `koffi`, que trazem binários já compilados. As versões estão fixadas, e o código nativo do `loopback-capture` foi revisado antes da inclusão.
 - **`cloudflared` procurado por pasta:** o app procura o programa também na pasta atual. Um arquivo falso com esse nome ali seria executado.
 - **`.exe` sem assinatura digital:** o Windows SmartScreen mostra um alerta.
 - **Túnel gratuito da Cloudflare:** não tem garantia de disponibilidade, e a Cloudflare enxerga o tráfego de sinalização (não o vídeo).
 - **Qualquer espectador pode gravar** o que você compartilha.
 - **Upload limita o número de espectadores:** cada pessoa assistindo consome até ~5 Mbps do seu upload em 1080p30. Quem está só na prévia gasta ~0,15 Mbps.
 - **Algumas redes bloqueiam a conexão direta:** CGNAT de operadora, 4G/5G e redes corporativas podem exigir um servidor TURN.
-- **Áudio do sistema só no Windows.**
+- **Áudio só no Windows:**
+  - o áudio por aplicativo precisa do Windows 10 versão 2004 ou mais novo, ou do Windows 11. Sem isso, a janela é compartilhada sem som;
+  - apps da Microsoft Store podem ficar sem som, porque a janela pertence a outro processo do Windows. Nesse caso, compartilhe a tela inteira.
 
 ### O que já está protegido
 

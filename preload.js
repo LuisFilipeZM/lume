@@ -11,6 +11,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getPublicUrl: () => ipcRenderer.invoke('get-public-url'),
   copyText: (text) => ipcRenderer.invoke('copy-text', text),
   onWindowVisibility: (cb) => ipcRenderer.on('window-visibility', (_e, visible) => cb(visible)),
+  // áudio só do aplicativo compartilhado (ou do PC sem o Lume, na tela inteira)
+  startAppAudio: (sourceId) => ipcRenderer.invoke('app-audio-start', sourceId),
+  stopAppAudio: () => ipcRenderer.invoke('app-audio-stop'),
+  onAppAudio: (cb) => ipcRenderer.on('app-audio-data', (_e, chunk) => cb(chunk)),
   goHome: () => ipcRenderer.invoke('go-home'),
   // tela inicial
   hostStart: (opts) => ipcRenderer.invoke('host-start', opts),

@@ -128,6 +128,10 @@ function createWindow() {
     },
   });
 
+  // saiu da sala ou a página recarregou: encerra a captura de áudio
+  win.webContents.on('did-start-navigation', (details) => { if (details.isMainFrame) stopAppAudio(); });
+  win.webContents.on('render-process-gone', stopAppAudio);
+
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https:\/\//i.test(url)) shell.openExternal(url);
     return { action: 'deny' };
@@ -194,6 +198,67 @@ function goStart(query) {
   allowedOrigin = null;
   return win.loadFile(START, query ? { query } : undefined);
 }
+
+// ---------- áudio por aplicativo (Windows 10 versão 2004 ou mais nova / Windows 11) ----------
+// Janela compartilhada: captura só o som do processo dono da janela (e dos processos filhos dele).
+// Tela inteira: captura todo o som do PC, menos o do próprio Lume (evita eco de quem você está assistindo).
+let appAudio = null;        // captura ativa (loopback-capture)
+let getWindowPid = null;    // GetWindowThreadProcessId, carregada sob demanda
+
+function windowPid(hwnd) {
+  if (!getWindowPid) {
+    const koffi = require('koffi');
+    const user32 = koffi.load('user32.dll');
+    getWindowPid = user32.func('uint32_t __stdcall GetWindowThreadProcessId(intptr_t hWnd, _Out_ uint32_t *lpdwProcessId)');
+  }
+  const out = [null];
+  getWindowPid(hwnd, out);
+  return Number(out[0]) || 0;
+}
+
+function stopAppAudio() {
+  if (!appAudio) return;
+  try { appAudio.stop(); } catch {}
+  appAudio = null;
+}
+
+function startAppAudio(sourceId, target) {
+  if (process.platform !== 'win32') return { ok: false, error: 'só no Windows' };
+  stopAppAudio();
+  let LoopbackCapture;
+  try { ({ LoopbackCapture } = require('loopback-capture')); }
+  catch (e) { return { ok: false, error: 'módulo de áudio indisponível: ' + e.message }; }
+
+  const send = (chunk) => {
+    if (!target.isDestroyed()) target.send('app-audio-data', chunk);
+  };
+  try {
+    const capture = new LoopbackCapture();
+    const m = /^window:(\d+):/.exec(String(sourceId));
+    if (m) {
+      const pid = windowPid(Number(m[1]));
+      if (!pid) return { ok: false, error: 'não encontrei o programa dessa janela' };
+      capture.start(pid, true, send);           // só este aplicativo (e seus processos filhos)
+      appAudio = capture;
+      return { ok: true, mode: 'app' };
+    }
+    capture.start(process.pid, false, send);    // tela inteira: tudo, exceto o próprio Lume
+    appAudio = capture;
+    return { ok: true, mode: 'system' };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+ipcMain.handle('app-audio-start', (e, sourceId) => {
+  requireRoom(e);
+  return startAppAudio(sourceId, e.sender);
+});
+
+ipcMain.handle('app-audio-stop', (e) => {
+  requireRoom(e);
+  stopAppAudio();
+});
 
 // ---------- comandos vindos das páginas ----------
 ipcMain.handle('host-start', async (e, opts = {}) => {
@@ -309,6 +374,7 @@ app.on('window-all-closed', () => app.quit());
 
 app.on('before-quit', () => {
   isQuitting = true; // cobre também desligar o Windows e o "Sair" da bandeja
+  stopAppAudio();
   try { if (tray) tray.destroy(); } catch {}
   try { if (tunnelProc) tunnelProc.kill(); } catch {}
   try { if (serverHandle) serverHandle.close(); } catch {}
