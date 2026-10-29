@@ -6,7 +6,13 @@
 
 <p align="center">
   Compartilhe sua tela com áudio com os amigos, no estilo do Discord, sem servidor pago e sem conta.<br>
-  <b>Electron + WebRTC</b> · Windows · v1.9.0
+  <b>Electron + WebRTC</b> · Windows
+</p>
+
+<p align="center">
+  <a href="https://github.com/LuisFilipeZM/lume/releases/latest">
+    <img src="https://img.shields.io/github/v/release/LuisFilipeZM/lume?label=Baixar%20para%20Windows&logo=windows&style=for-the-badge&color=5865F2" alt="Baixar para Windows">
+  </a>
 </p>
 
 ---
@@ -64,13 +70,22 @@ flowchart LR
 
 ## Instalação e uso
 
-### Requisitos
+### Baixar pronto (recomendado)
 
-- Windows 10/11
+1. Baixe o `.zip` da **[última release](https://github.com/LuisFilipeZM/lume/releases/latest)**.
+2. Descompacte a pasta inteira e abra o `Lume.exe`.
+
+Não precisa instalar Node.js. Na primeira vez, o Windows SmartScreen avisa que o app não é reconhecido: clique em **Mais informações → Executar assim mesmo**.
+
+### Rodar a partir do código
+
+#### Requisitos
+
+- Windows 10 versão 2004 ou mais novo, ou Windows 11
 - [Node.js](https://nodejs.org) 18 ou superior
 - [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/), para o link público: `winget install --id Cloudflare.cloudflared`
 
-### Rodar
+#### Rodar
 
 ```bash
 npm install
