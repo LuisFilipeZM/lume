@@ -53,7 +53,12 @@
   .tile .tools button { padding: 3px 8px; background: transparent; }
   .tile .tools input[type=range] { width: 80px; }
   aside { width: 220px; background: var(--panel); border-left: 1px solid #1e1f22; padding: 12px; overflow: auto; }
-  aside h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+  aside h3 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+  aside .asideHead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  aside.collapsed { display: none; }
+  button.iconBtn { padding: 2px 8px; background: transparent; color: var(--muted); font-size: 16px; line-height: 1; }
+  button.iconBtn:hover { background: var(--panel2); color: var(--text); }
+  #peopleBtn.active { background: #3b3d44; }
   #peers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
   #peers li { padding: 6px 8px; border-radius: 6px; background: var(--panel2); display: flex; align-items: center; gap: 8px; font-size: 14px; overflow-wrap: anywhere; }
   .live { background: var(--red); color: #fff; font-size: 10px; font-weight: 700; padding: 2px 5px; border-radius: 4px; margin-left: auto; }
@@ -72,7 +77,7 @@
   button.src { display: flex; flex-direction: column; gap: 6px; padding: 8px; text-align: left; font-weight: 500; font-size: 13px; }
   button.src img { width: 100%; aspect-ratio: 16 / 9; object-fit: contain; background: #000; border-radius: 4px; }
   button.src span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  @media (max-width: 720px) { aside { display: none; } }
+  @media (max-width: 720px) { aside, #peopleBtn { display: none; } }
 </style>
 </head>
 <body>
@@ -95,6 +100,7 @@
     <input id="linkBox" type="text" readonly title="Link da sala (clique para selecionar)">
     <button class="secondary" id="copyBtn">Copiar link</button>
     <span class="spacer"></span>
+    <button class="secondary" id="peopleBtn" title="Mostrar ou recolher a lista de pessoas na sala">👥 <span id="peopleCount">1</span></button>
     <button class="danger" id="leaveBtn">Sair</button>
   </header>
   <main>
@@ -102,8 +108,11 @@
       <div id="empty">Ninguém está compartilhando ainda.<br>Clique em “Compartilhar tela” para começar.</div>
       <div id="grid"></div>
     </div>
-    <aside>
-      <h3>Na sala</h3>
+    <aside id="aside">
+      <div class="asideHead">
+        <h3>Na sala</h3>
+        <button class="iconBtn" id="collapseBtn" title="Recolher (mais espaço para as telas)">»</button>
+      </div>
       <ul id="peers"></ul>
     </aside>
   </main>
@@ -332,7 +341,18 @@ function renderPeers() {
   };
   add(myName, sharing, true);
   for (const p of peers.values()) add(p.name, p.sharing, false);
+  $('#peopleCount').textContent = peers.size + 1;
 }
+
+// Recolher/mostrar a lista de pessoas. As telas crescem sozinhas: o layout reage ao novo tamanho.
+function setAsideCollapsed(collapsed) {
+  $('#aside').classList.toggle('collapsed', collapsed);
+  $('#peopleBtn').classList.toggle('active', !collapsed);
+  store('ts-aside-collapsed', collapsed ? '1' : '0');
+}
+setAsideCollapsed(load('ts-aside-collapsed') === '1');
+$('#collapseBtn').onclick = () => setAsideCollapsed(true);
+$('#peopleBtn').onclick = () => setAsideCollapsed(!$('#aside').classList.contains('collapsed'));
 
 // ---------- vídeos ----------
 function updateEmpty() {
