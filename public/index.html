@@ -42,6 +42,12 @@
   .tile .label { position: absolute; left: 8px; bottom: 8px; background: rgba(0,0,0,.65); padding: 3px 9px; border-radius: 4px; font-size: 13px; }
   .tile .tools { position: absolute; right: 8px; top: 8px; display: flex; gap: 6px; align-items: center; opacity: 0; transition: opacity .15s; background: rgba(0,0,0,.65); padding: 4px 8px; border-radius: 6px; }
   .tile:hover .tools { opacity: 1; }
+  /* Prévia: imagem leve com botão "Assistir" por cima */
+  .tile .overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; background: rgba(0,0,0,.45); }
+  .tile .overlay .tag { font-size: 11px; font-weight: 700; letter-spacing: .6px; color: var(--muted); text-transform: uppercase; }
+  .tile .overlay button { padding: 10px 22px; font-size: 15px; }
+  .tile:not(.preview) .overlay { display: none; }
+  .tile.preview .tools { display: none; }
   .tile .tools button { padding: 3px 8px; background: transparent; }
   .tile .tools input[type=range] { width: 80px; }
   aside { width: 220px; background: var(--panel); border-left: 1px solid #1e1f22; padding: 12px; overflow: auto; }
@@ -263,11 +269,13 @@ async function onMessage(m) {
     case 'peer-left':
       peers.delete(m.id);
       viewStates.delete(m.id);
+      watching.delete(m.id);
       playSound('leave');
       closeSend(m.id);
       closeRecv(m.id);
       removeTile(m.id);
       renderPeers();
+      updateOwnLabel();
       break;
     case 'sharing': {
       const p = peers.get(m.id);
@@ -339,16 +347,34 @@ function tileFor(id, label, local) {
   t.className = 'tile';
   t.id = 'tile-' + id;
   t.innerHTML = '<video autoplay playsinline></video><div class="label"></div>' +
-    '<div class="tools"><input type="range" min="0" max="1" step="0.05" value="1" title="Volume"><button title="Tela cheia">⛶</button></div>';
+    '<div class="tools"><input type="range" min="0" max="1" step="0.05" value="1" title="Volume">' +
+    '<button class="fsBtn" title="Tela cheia">⛶</button><button class="stopBtn" title="Parar de assistir (volta para a prévia)">✕</button></div>';
   t.querySelector('.label').textContent = label;
   const v = t.querySelector('video');
   const vol = t.querySelector('input');
-  if (local) { v.muted = true; vol.classList.add('hidden'); }
+  if (local) {
+    v.muted = true;
+    vol.classList.add('hidden');
+    t.querySelector('.stopBtn').classList.add('hidden');
+  } else {
+    // Tela de um amigo: começa como prévia, com o botão Assistir
+    t.classList.add('preview');
+    v.muted = true;
+    const ov = document.createElement('div');
+    ov.className = 'overlay';
+    ov.innerHTML = '<span class="tag">Prévia</span><button>▶ Assistir</button>';
+    ov.querySelector('button').onclick = () => startWatching(id);
+    t.append(ov);
+    t.querySelector('.stopBtn').onclick = () => stopWatching(id);
+  }
   vol.oninput = () => { v.muted = false; v.volume = Number(vol.value); };
-  const fs = () => { if (v.requestFullscreen) v.requestFullscreen(); };
-  t.querySelector('button').onclick = fs;
+  const fs = () => {
+    if (t.classList.contains('preview')) return;
+    if (v.requestFullscreen) v.requestFullscreen();
+  };
+  t.querySelector('.fsBtn').onclick = fs;
   v.ondblclick = fs;
-  v.onclick = () => { if (!local) v.muted = false; };
+  v.onclick = () => { if (!local && !t.classList.contains('preview')) v.muted = false; };
   $('#grid').append(t);
   updateEmpty();
   return t;
@@ -364,12 +390,47 @@ function attachStream(id, stream) {
   const v = t.querySelector('video');
   if (v.srcObject !== stream) v.srcObject = stream;
   reportViews();
+  if (watching.has(id)) {
+    playWithSound(v);
+  } else {
+    v.muted = true;            // prévia: sem som
+    v.play().catch(() => {});
+  }
+}
+
+function playWithSound(v) {
   v.muted = false;
   v.play().catch(() => {
     v.muted = true;
     v.play().catch(() => {});
     toast('Clique no vídeo para ativar o som.');
   });
+}
+
+// ---------- assistir / voltar para a prévia ----------
+const watching = new Set(); // ids de quem estou assistindo em qualidade total
+
+function startWatching(id) {
+  const t = document.getElementById('tile-' + id);
+  if (!t) return;
+  initSound();
+  watching.add(id);
+  t.classList.remove('preview');
+  const v = t.querySelector('video');
+  v.volume = Number(t.querySelector('input').value);
+  playWithSound(v);
+  reportViews(true); // pede a qualidade total (e o áudio) para quem compartilha
+}
+
+function stopWatching(id) {
+  watching.delete(id);
+  const t = document.getElementById('tile-' + id);
+  if (!t) return;
+  const v = t.querySelector('video');
+  if (document.fullscreenElement === v) document.exitFullscreen().catch(() => {});
+  t.classList.add('preview');
+  v.muted = true;
+  reportViews(true); // volta a receber só a prévia
 }
 
 // ---------- WebRTC: quem compartilha ----------
@@ -413,12 +474,13 @@ async function startShare() {
   previewTrack = vt.clone();
   previewTrack.applyConstraints({ width: { max: 640 }, height: { max: 360 }, frameRate: { max: 5 } }).catch(() => {});
   previewTrack.enabled = windowVisible;
-  const t = tileFor(myId, 'Você está compartilhando (prévia)', true);
+  const t = tileFor(myId, 'Você está compartilhando', true);
   t.querySelector('video').srcObject = new MediaStream([previewTrack]);
 
   sendWs({ type: 'sharing', on: true });
   playSound('shareOn');
   renderPeers();
+  updateOwnLabel();
   for (const id of peers.keys()) connectToViewer(id).catch(console.error);
 }
 
@@ -442,6 +504,7 @@ function stopShare() {
 async function connectToViewer(id) {
   if (!shareStream) return;
   closeSend(id);
+  viewStates.delete(id); // conexão nova: começa como prévia até a pessoa clicar em Assistir
   const pc = new RTCPeerConnection({ iceServers });
   sendPcs.set(id, pc);
   pc.onicecandidate = (e) => {
@@ -517,13 +580,24 @@ async function pickSource() {
 // janela escondida/minimizada = vídeo pausado para ele (o áudio continua).
 const viewStates = new Map(); // espectador -> { w, h, visible }
 
+// Prévia enviada a quem ainda não clicou em "Assistir": pequena, 2 quadros por segundo e sem áudio
+const PREVIEW = { h: 180, fps: 2, br: 150000 };
+
+function viewOf(id) {
+  return viewStates.get(id) || { w: 0, h: 0, visible: true, watching: false };
+}
+
 function videoEncodingFor(id) {
-  const enc = { active: true, maxBitrate: preset.br, maxFramerate: preset.fps, scaleResolutionDownBy: 1 };
-  const v = viewStates.get(id);
-  if (!v || !shareStream) return enc;
-  enc.active = v.visible !== false;
-  const s = shareStream.getVideoTracks()[0].getSettings();
+  const v = viewOf(id);
+  const enc = { active: v.visible !== false, maxBitrate: preset.br, maxFramerate: preset.fps, scaleResolutionDownBy: 1 };
+  const s = shareStream ? shareStream.getVideoTracks()[0].getSettings() : {};
   const srcW = s.width || preset.w, srcH = s.height || preset.h;
+  if (!v.watching) {
+    enc.scaleResolutionDownBy = Math.max(1, srcH / PREVIEW.h);
+    enc.maxFramerate = PREVIEW.fps;
+    enc.maxBitrate = PREVIEW.br;
+    return enc;
+  }
   if (v.w > 0 && v.h > 0) {
     let scale = Math.max(srcW / v.w, srcH / v.h);                  // quanto a imagem é reduzida na tela dele
     scale = Math.min(Math.max(scale, 1), Math.max(1, srcH / 360)); // nunca abaixo de 360p (texto legível)
@@ -534,32 +608,38 @@ function videoEncodingFor(id) {
   return enc;
 }
 
-async function applyVideoParams(pc, id) {
-  const s = pc.getSenders().find((x) => x.track && x.track.kind === 'video');
-  if (!s) return;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const p = s.getParameters();
-    if (!p.encodings || !p.encodings.length) p.encodings = [{}];
-    Object.assign(p.encodings[0], videoEncodingFor(id));
-    p.degradationPreference = $('#modeSel').value === 'detail' ? 'maintain-resolution' : 'maintain-framerate';
-    try { await s.setParameters(p); return; }
-    catch (e) { await new Promise((r) => setTimeout(r, 200)); } // outra alteração em andamento: tenta de novo
+// Aplica a configuração de envio (vídeo e áudio) para um espectador
+async function applySenderParams(pc, id) {
+  for (const s of pc.getSenders()) {
+    if (!s.track) continue;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const p = s.getParameters();
+      if (!p.encodings || !p.encodings.length) p.encodings = [{}];
+      if (s.track.kind === 'video') {
+        Object.assign(p.encodings[0], videoEncodingFor(id));
+        p.degradationPreference = $('#modeSel').value === 'detail' ? 'maintain-resolution' : 'maintain-framerate';
+      } else {
+        p.encodings[0].maxBitrate = 128000;
+        p.encodings[0].active = viewOf(id).watching; // áudio só para quem está assistindo
+      }
+      try { await s.setParameters(p); break; }
+      catch (e) { await new Promise((r) => setTimeout(r, 200)); } // outra alteração em andamento: tenta de novo
+    }
   }
 }
 
-// Define bitrate máximo e o que sacrificar quando a rede apertar
+// Define bitrate, prévia/qualidade total e o que sacrificar quando a rede apertar
 async function tuneSenders(pc, id) {
-  for (const s of pc.getSenders()) {
-    if (!s.track) continue;
-    if (s.track.kind === 'video') {
-      await applyVideoParams(pc, id);
-    } else {
-      const p = s.getParameters();
-      if (!p.encodings || !p.encodings.length) p.encodings = [{}];
-      p.encodings[0].maxBitrate = 128000;
-      try { await s.setParameters(p); } catch (e) { console.warn('setParameters', e); }
-    }
-  }
+  await applySenderParams(pc, id);
+}
+
+// Mostra na própria prévia quantas pessoas estão assistindo
+function updateOwnLabel() {
+  const t = myId && document.getElementById('tile-' + myId);
+  if (!t || !sharing) return;
+  const n = [...sendPcs.keys()].filter((id) => viewOf(id).watching).length;
+  t.querySelector('.label').textContent = 'Você está compartilhando · ' +
+    (n === 0 ? 'ninguém assistindo ainda' : n === 1 ? '1 pessoa assistindo' : n + ' pessoas assistindo');
 }
 
 // Lado de quem assiste: informa tamanho e visibilidade (com atraso para agrupar mudanças)
@@ -576,11 +656,12 @@ function reportViews(now) {
       const v = t.querySelector('video');
       const w = Math.round(v.clientWidth * dpr), h = Math.round(v.clientHeight * dpr);
       if (!w || !h) continue;
+      const isWatching = watching.has(id);
       const prev = lastView.get(id);
-      if (prev && prev.visible === windowVisible &&
+      if (prev && prev.visible === windowVisible && prev.watching === isWatching &&
           Math.abs(prev.w - w) < prev.w * 0.1 && Math.abs(prev.h - h) < prev.h * 0.1) continue;
-      lastView.set(id, { w, h, visible: windowVisible });
-      sendSignal(id, { kind: 'view', w, h, visible: windowVisible });
+      lastView.set(id, { w, h, visible: windowVisible, watching: isWatching });
+      sendSignal(id, { kind: 'view', w, h, visible: windowVisible, watching: isWatching });
     }
   }, now ? 0 : 300);
 }
@@ -625,6 +706,11 @@ function closeRecv(id) {
   const pc = recvPcs.get(id);
   if (pc) { pc.close(); recvPcs.delete(id); }
   lastView.delete(id);
+  // conexão encerrada/refeita: volta para a prévia
+  if (watching.delete(id)) {
+    const t = document.getElementById('tile-' + id);
+    if (t) { t.classList.add('preview'); t.querySelector('video').muted = true; }
+  }
 }
 
 // ---------- sinalização ----------
@@ -648,9 +734,10 @@ async function onSignal(from, d) {
     const pc = d.side === 'sharer' ? recvPcs.get(from) : sendPcs.get(from);
     if (pc) await addCandidate(pc, d.candidate);
   } else if (d.kind === 'view') {
-    viewStates.set(from, { w: Number(d.w) || 0, h: Number(d.h) || 0, visible: d.visible !== false });
+    viewStates.set(from, { w: Number(d.w) || 0, h: Number(d.h) || 0, visible: d.visible !== false, watching: !!d.watching });
     const pc = sendPcs.get(from);
-    if (pc) await applyVideoParams(pc, from);
+    if (pc) await applySenderParams(pc, from);
+    updateOwnLabel();
   }
 }
 

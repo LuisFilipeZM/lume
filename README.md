@@ -6,7 +6,7 @@
 
 <p align="center">
   Compartilhe sua tela com áudio com os amigos, no estilo do Discord, sem servidor pago e sem conta.<br>
-  <b>Electron + WebRTC</b> · Windows · v1.7.0
+  <b>Electron + WebRTC</b> · Windows · v1.8.0
 </p>
 
 ---
@@ -23,6 +23,7 @@ Quem só quer **assistir** não precisa instalar nada: o link abre no navegador.
 - **Tela e áudio do sistema:** escolha uma tela inteira ou só uma janela. No Windows, o som do PC vai junto automaticamente.
 - **Até 1080p a 60 fps**, com codec H.264 (usa a placa de vídeo) ou VP9.
 - **Vários espectadores e vários compartilhando ao mesmo tempo** (até 12 pessoas por sala).
+- **Prévia antes de assistir:** quando alguém compartilha, os outros veem só uma prévia leve (sem som). Quem quiser assistir clica em **▶ Assistir** e recebe a tela em qualidade total com áudio. O ✕ volta para a prévia, e quem compartilha vê quantas pessoas estão assistindo.
 - **Layout automático:** as telas se reorganizam para ficar o maior possível.
 - **Volume e tela cheia** separados para cada tela.
 - **Sons de aviso** quando alguém entra, sai, começa ou para de compartilhar (dá para desligar).
@@ -57,7 +58,7 @@ flowchart LR
 1. **Quem cria a sala** liga um pequeno servidor no próprio PC. O `cloudflared` expõe esse servidor na internet com um endereço `https://...trycloudflare.com`, sem precisar mexer no roteador.
 2. **Os amigos** abrem o link. O servidor só faz a **sinalização**: quem entrou, quem saiu, quem está compartilhando e a troca de dados para os computadores se encontrarem.
 3. **O vídeo e o áudio não passam pelo servidor.** Eles vão direto de um computador para o outro via **WebRTC**, criptografados de ponta a ponta (DTLS-SRTP). Um servidor STUN público do Google ajuda os PCs a descobrirem o endereço público um do outro, mesmo atrás de roteadores diferentes.
-4. Quem compartilha envia **um fluxo para cada espectador**. Cada espectador informa o tamanho em que vê a tela, e o envio é ajustado para gastar só o necessário.
+4. Quem compartilha envia **um fluxo para cada espectador**. Por padrão é só uma prévia: 320×180, 2 quadros por segundo e sem áudio, cerca de 150 kbps. Quando o espectador clica em **Assistir**, o fluxo dele passa para a qualidade total com áudio, ajustada ao tamanho em que ele vê a tela. Assim o upload de quem compartilha só é gasto com quem realmente está assistindo.
 
 ## Instalação e uso
 
@@ -127,7 +128,7 @@ O Lume é um **projeto pessoal, feito para uso entre amigos de confiança**. Ele
 - **`.exe` sem assinatura digital:** o Windows SmartScreen mostra um alerta.
 - **Túnel gratuito da Cloudflare:** não tem garantia de disponibilidade, e a Cloudflare enxerga o tráfego de sinalização (não o vídeo).
 - **Qualquer espectador pode gravar** o que você compartilha.
-- **Upload limita o número de espectadores:** cada um consome até ~5 Mbps do seu upload em 1080p30.
+- **Upload limita o número de espectadores:** cada pessoa assistindo consome até ~5 Mbps do seu upload em 1080p30. Quem está só na prévia gasta ~0,15 Mbps.
 - **Algumas redes bloqueiam a conexão direta:** CGNAT de operadora, 4G/5G e redes corporativas podem exigir um servidor TURN.
 - **Áudio do sistema só no Windows.**
 
