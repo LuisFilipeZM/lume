@@ -31,6 +31,10 @@ Quem só quer **assistir** não precisa instalar nada: o link abre no navegador.
   - **Tela inteira:** vai todo o som do PC, menos o do próprio Lume, o que evita eco de quem você está assistindo.
 - **Até 1080p a 60 fps**, com codec H.264 (usa a placa de vídeo) ou VP9.
 - **Vários espectadores e vários compartilhando ao mesmo tempo** (até 12 pessoas por sala).
+- **Senha opcional na sala:**
+  - quem cria a sala pode definir uma senha, e em branco a sala fica aberta;
+  - a senha não vai no link: mande separado;
+  - salas com senha mostram um 🔒 no topo.
 - **Prévia antes de assistir:** quando alguém compartilha, os outros veem só uma prévia leve (sem som). Quem quiser assistir clica em **▶ Assistir** e recebe a tela em qualidade total com áudio. O ✕ volta para a prévia, e quem compartilha vê quantas pessoas estão assistindo.
 - **Layout automático:** as telas se reorganizam para ficar o maior possível.
 - **Volume e tela cheia** separados para cada tela.
@@ -168,7 +172,13 @@ O Lume é um **projeto pessoal, feito para uso entre amigos de confiança**. Ele
 
 ### Risco médio
 
-- **O link é a única proteção.** Não há senha nem aprovação de quem cria a sala: quem tiver o link entra e vê tudo o que for compartilhado. Não publique o link em lugares abertos.
+- **Sem senha, o link é a única proteção.** Numa sala aberta, quem tiver o link entra e vê tudo o que for compartilhado.
+  - **Use senha** se o link puder circular, e não publique o link em lugares abertos.
+  - **Com senha:**
+    - ela fica só na memória do PC de quem criou, como hash, e some quando a sala esvazia;
+    - depois de 5 tentativas erradas, o IP fica bloqueado por 1 minuto;
+    - a senha protege a entrada na sala, mas **não é uma senha forte contra ataques**: use algo que não seja óbvio.
+  - **Não há aprovação** de novos participantes por quem criou a sala.
 - **O servidor aceita conexões da rede local.** Qualquer pessoa no mesmo Wi-Fi consegue acessar `http://SEU-IP:3000`.
 - **Seu IP fica visível para quem está na sala.** Como a conexão é direta (P2P), os participantes veem o IP público uns dos outros.
 - **Você pode mostrar mais do que pretende.** Compartilhar a tela inteira expõe notificações, mensagens e outras janelas. O áudio também vai inteiro, incluindo chamadas do Discord e notificações. Prefira compartilhar só uma janela: assim vai apenas a imagem e o som daquele aplicativo.
@@ -204,7 +214,8 @@ O Lume é um **projeto pessoal, feito para uso entre amigos de confiança**. Ele
 
 - [ ] Seletor de tela confiável no próprio app, para que nenhuma página consiga capturar sem confirmação
 - [ ] Servidor escutando só em `127.0.0.1` por padrão
-- [ ] Senha da sala ou aprovação de novos participantes
+- [x] Senha da sala
+- [ ] Aprovação de novos participantes por quem criou a sala
 - [ ] Configuração de TURN na tela inicial
 - [ ] Indicador de "ao vivo" no ícone da bandeja
 - [ ] Versões fixas das dependências e `.exe` assinado

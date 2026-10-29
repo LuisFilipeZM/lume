@@ -27,6 +27,8 @@
   #join h1 { margin: 0 0 4px; font-size: 22px; }
   #join label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
   #join p { margin: 0; color: var(--muted); font-size: 13px; }
+  #join p.err { color: #ff8a8d; font-weight: 600; }
+  #lockBadge { font-size: 13px; color: var(--muted); }
 
   /* App */
   #app { flex: 1; display: flex; flex-direction: column; min-height: 0; }
@@ -80,13 +82,16 @@
   <p>Compartilhe sua tela com áudio com os amigos, direto do navegador.</p>
   <div><label for="name">Seu nome</label><input id="name" type="text" maxlength="24" style="width:100%"></div>
   <div><label for="room">Sala</label><input id="room" type="text" maxlength="40" style="width:100%"></div>
+  <div><label for="pass">Senha (opcional)</label><input id="pass" type="password" maxlength="64" style="width:100%" autocomplete="off" placeholder="Em branco = sala aberta"></div>
+  <p id="joinErr" class="err hidden"></p>
   <button id="joinBtn">Entrar na sala</button>
-  <p>Quem tiver o link da sala consegue entrar.</p>
+  <p>Quem cria a sala define a senha. Sem senha, quem tiver o link consegue entrar. Mande a senha separada do link.</p>
 </div>
 
 <div id="app" class="hidden">
   <header>
     <span class="room">✨ <span id="roomName"></span></span>
+    <span id="lockBadge" class="hidden" title="Só entra quem tiver a senha">🔒 com senha</span>
     <input id="linkBox" type="text" readonly title="Link da sala (clique para selecionar)">
     <button class="secondary" id="copyBtn">Copiar link</button>
     <span class="spacer"></span>
@@ -213,7 +218,15 @@ $('#soundChk').onchange = () => store('ts-sounds', $('#soundChk').checked ? '1' 
 $('#name').value = load('ts-name') || '';
 $('#room').value = new URLSearchParams(location.search).get('room') || randomRoom();
 $('#joinBtn').onclick = join;
-$('#room').onkeydown = $('#name').onkeydown = (e) => { if (e.key === 'Enter') join(); };
+$('#room').onkeydown = $('#name').onkeydown = $('#pass').onkeydown = (e) => { if (e.key === 'Enter') join(); };
+
+let roomLocked = false;
+
+function showJoinError(msg) {
+  const el = $('#joinErr');
+  el.textContent = msg;
+  el.classList.toggle('hidden', !msg);
+}
 
 function join() {
   myName = $('#name').value.trim() || 'Convidado';
@@ -222,15 +235,17 @@ function join() {
   store('ts-name', myName);
   initSound(); // libera o áudio aproveitando o clique
   $('#joinBtn').disabled = true;
+  showJoinError('');
 
-  ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
-  ws.onopen = () => ws.send(JSON.stringify({ type: 'join', room, name: myName }));
-  ws.onmessage = (ev) => {
+  const password = $('#pass').value;
+  const sock = ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
+  sock.onopen = () => sock.send(JSON.stringify({ type: 'join', room, name: myName, password }));
+  sock.onmessage = (ev) => {
     let m; try { m = JSON.parse(ev.data); } catch { return; }
     chain = chain.then(() => onMessage(m)).catch((e) => console.error(e));
   };
-  ws.onclose = () => {
-    if (!leaving) toast('Conexão com o servidor perdida. Recarregue a página.');
+  sock.onclose = () => {
+    if (!leaving && !sock.rejected) toast('Conexão com o servidor perdida. Recarregue a página.');
   };
 }
 
@@ -240,9 +255,15 @@ function sendSignal(to, data) { sendWs({ type: 'signal', to, data }); }
 async function onMessage(m) {
   switch (m.type) {
     case 'error':
-      alert(m.message);
+      // entrada recusada (senha, sala cheia...): mostra no formulário e deixa tentar de novo
+      ws.rejected = true;
+      ws.close();
+      showJoinError(m.message);
       $('#joinBtn').disabled = false;
-      leaving = true; ws.close(); leaving = false;
+      if (m.code === 'wrong-password' || m.code === 'password-required') {
+        $('#pass').focus();
+        $('#pass').select();
+      }
       break;
     case 'welcome':
       myId = m.id;
@@ -251,6 +272,9 @@ async function onMessage(m) {
       $('#join').classList.add('hidden');
       $('#app').classList.remove('hidden');
       $('#roomName').textContent = room;
+      roomLocked = !!m.locked;
+      $('#lockBadge').classList.toggle('hidden', !roomLocked);
+      $('#pass').value = ''; // não deixa a senha sobrando no formulário
       history.replaceState(null, '', '?room=' + encodeURIComponent(room));
       if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
         $('#shareBtn').disabled = true;
@@ -867,7 +891,8 @@ $('#copyBtn').onclick = async () => {
   $('#linkBox').value = link;
   try {
     await copyText(link);
-    toast(onlyHere ? 'Link copiado, mas só funciona neste computador (sem link público).' : 'Link copiado!');
+    toast(onlyHere ? 'Link copiado, mas só funciona neste computador (sem link público).'
+      : roomLocked ? 'Link copiado! A sala tem senha: mande a senha separadamente.' : 'Link copiado!');
   }
   catch {
     $('#linkBox').focus();
