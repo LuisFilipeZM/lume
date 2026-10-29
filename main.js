@@ -1,9 +1,10 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, desktopCapturer, session, shell, clipboard, Tray, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, desktopCapturer, session, shell, clipboard, Tray, Menu, dialog, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const { startServer } = require('./server');
+const updater = require('./updater');
 
 // Desempenho: não reduzir a prioridade do app quando outra janela (ex.: um jogo) está na frente
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
@@ -186,7 +187,9 @@ function createTray() {
   tray = new Tray(ICON);
   tray.setToolTip('Lume');
   tray.setContextMenu(Menu.buildFromTemplate([
+    { label: `Lume v${app.getVersion()}`, enabled: false },
     { label: 'Abrir Lume', click: showWindow },
+    { label: 'Procurar atualizações', click: () => checkForUpdates({ manual: true }) },
     { type: 'separator' },
     { label: 'Sair', click: quitApp },
   ]));
@@ -198,6 +201,132 @@ function goStart(query) {
   allowedOrigin = null;
   return win.loadFile(START, query ? { query } : undefined);
 }
+
+// ---------- atualizações ----------
+// Consulta a última release no GitHub. Se houver versão nova, pergunta antes (aviso nativo do Windows,
+// que nenhuma página consegue imitar ou disparar). Só funciona no app gerado (.exe), não no "npm start".
+const UPDATE_FIRST_CHECK_MS = 10 * 1000;
+const UPDATE_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const updateStateFile = () => path.join(app.getPath('userData'), 'atualizacao.json');
+const askedThisSession = new Set();
+let updateBusy = false;
+
+function readUpdateState() {
+  try { return JSON.parse(fs.readFileSync(updateStateFile(), 'utf8')); } catch { return {}; }
+}
+function writeUpdateState(s) {
+  try { fs.writeFileSync(updateStateFile(), JSON.stringify(s)); } catch {}
+}
+function dialogParent() {
+  return win && !win.isDestroyed() && win.isVisible() ? win : undefined;
+}
+function updatesSupported() {
+  return app.isPackaged && process.platform === 'win32';
+}
+
+async function checkForUpdates({ manual = false } = {}) {
+  if (!updatesSupported()) {
+    if (manual) dialog.showMessageBox(dialogParent(), { type: 'info', title: 'Atualizações', message: 'As atualizações só funcionam no Lume.exe gerado (npm run dist), no Windows.' });
+    return;
+  }
+  if (updateBusy) return;
+  let r;
+  try {
+    r = await updater.checkLatest(net.fetch, app.getVersion());
+  } catch (e) {
+    if (manual) dialog.showMessageBox(dialogParent(), { type: 'warning', title: 'Atualizações', message: 'Não consegui verificar se há versão nova.', detail: e.message });
+    return;
+  }
+  if (!r.available) {
+    if (manual) dialog.showMessageBox(dialogParent(), { type: 'info', title: 'Atualizações', message: `Você já está na versão mais recente (v${app.getVersion()}).` });
+    return;
+  }
+  const info = r.info;
+  if (!manual && (askedThisSession.has(info.version) || readUpdateState().skip === info.version)) return;
+  askedThisSession.add(info.version);
+
+  const mb = info.size ? ` (${Math.round(info.size / 1048576)} MB)` : '';
+  const { response } = await dialog.showMessageBox(dialogParent(), {
+    type: 'info',
+    title: 'Atualização do Lume',
+    message: `Nova versão disponível: v${info.version}`,
+    detail: `Você está usando a v${app.getVersion()}.\n\n` +
+      `Ao atualizar, o Lume baixa a versão nova${mb}, fecha e abre de novo sozinho. ` +
+      'Se você estiver numa sala ou compartilhando a tela, a conexão será encerrada.',
+    buttons: ['Atualizar agora', 'Depois', 'Pular esta versão', 'Ver novidades'],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+  });
+  if (response === 0) return runUpdate(info);
+  if (response === 2) writeUpdateState({ ...readUpdateState(), skip: info.version });
+  if (response === 3) shell.openExternal(info.page);
+}
+
+function setUpdateProgress(p, label) {
+  if (win && !win.isDestroyed()) win.setProgressBar(p);
+  if (tray) tray.setToolTip(label || 'Lume');
+}
+
+async function runUpdate(info) {
+  const appDir = path.dirname(process.execPath);
+  if (!updater.canWrite(appDir)) {
+    const { response } = await dialog.showMessageBox(dialogParent(), {
+      type: 'warning', title: 'Atualização do Lume',
+      message: 'Não tenho permissão para atualizar a pasta do Lume.',
+      detail: `${appDir}\n\nMova a pasta do Lume para um local seu (por exemplo, Documentos) ou baixe a versão nova manualmente.`,
+      buttons: ['Abrir página de download', 'Fechar'], defaultId: 0, cancelId: 1, noLink: true,
+    });
+    if (response === 0) shell.openExternal(info.page);
+    return;
+  }
+  updateBusy = true;
+  const workDir = path.join(app.getPath('temp'), 'lume-atualizacao');
+  try {
+    fs.rmSync(workDir, { recursive: true, force: true });
+    const zip = path.join(workDir, info.name);
+    await updater.download(net.fetch, info, zip, (p) =>
+      setUpdateProgress(p, `Lume – baixando atualização ${Math.round(p * 100)}%`));
+    setUpdateProgress(2, 'Lume – preparando atualização…'); // 2 = barra "indeterminada"
+    const newApp = await updater.extract(zip, path.join(workDir, 'novo'));
+    updater.launchReplaceScript({ pid: process.pid, src: newApp, dst: appDir, workDir });
+    quitApp(); // o script espera o Lume fechar, troca os arquivos e abre de novo
+  } catch (e) {
+    updateBusy = false;
+    setUpdateProgress(-1);
+    const { response } = await dialog.showMessageBox(dialogParent(), {
+      type: 'error', title: 'Atualização do Lume',
+      message: 'A atualização não pôde ser concluída. Você continua na versão atual.',
+      detail: e.message,
+      buttons: ['Abrir página de download', 'Fechar'], defaultId: 1, cancelId: 1, noLink: true,
+    });
+    if (response === 0) shell.openExternal(info.page);
+  }
+}
+
+// Mensagem depois de uma atualização (o script reabre o Lume com --updated ou --update-failed)
+function reportUpdateResult() {
+  if (process.argv.includes('--updated')) {
+    dialog.showMessageBox(dialogParent(), { type: 'info', title: 'Lume', message: `Lume atualizado para a v${app.getVersion()}.` });
+  } else if (process.argv.includes('--update-failed')) {
+    dialog.showMessageBox(dialogParent(), {
+      type: 'warning', title: 'Lume',
+      message: `A atualização não pôde ser aplicada. Você continua na v${app.getVersion()}.`,
+      detail: 'Feche outros programas que possam estar usando a pasta do Lume e tente de novo pelo menu da bandeja (Procurar atualizações), ou baixe a versão nova manualmente.',
+    });
+  }
+}
+
+function scheduleUpdateChecks() {
+  if (!updatesSupported()) return;
+  setTimeout(() => checkForUpdates(), UPDATE_FIRST_CHECK_MS);
+  setInterval(() => checkForUpdates(), UPDATE_INTERVAL_MS);
+}
+
+ipcMain.handle('get-version', (e) => {
+  requireStart(e);
+  return app.getVersion();
+});
 
 // ---------- áudio por aplicativo (Windows 10 versão 2004 ou mais nova / Windows 11) ----------
 // Janela compartilhada: captura só o som do processo dono da janela (e dos processos filhos dele).
@@ -367,6 +496,8 @@ app.whenReady().then(() => {
 
   createWindow();
   createTray();
+  win.webContents.once('did-finish-load', reportUpdateResult);
+  scheduleUpdateChecks();
   app.on('activate', showWindow);
 });
 

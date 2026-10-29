@@ -41,6 +41,7 @@ Quem só quer **assistir** não precisa instalar nada: o link abre no navegador.
   - quem minimiza deixa de receber vídeo (o áudio continua);
   - a prévia da própria tela é leve.
 - **Link público automático** via túnel da Cloudflare, sem abrir portas no roteador.
+- **Atualização automática:** o app avisa quando sai uma versão nova e, se você aceitar, baixa, confere, troca os arquivos e reabre sozinho.
 
 ## Como funciona
 
@@ -102,7 +103,44 @@ npm start
 npm run dist
 ```
 
-O resultado fica em `dist/Lume-win32-x64/`. Para distribuir, compacte **a pasta inteira**, porque o `Lume.exe` depende dos outros arquivos dela.
+O resultado fica em `dist/Lume-win32-x64/`. Para distribuir, compacte **a pasta inteira**, porque o `Lume.exe` depende dos outros arquivos dela. Para que a atualização automática reconheça a release, siga o passo a passo em [Publicar uma versão nova](#publicar-uma-versão-nova).
+
+## Atualizações
+
+- **Quando verifica:** 10 segundos depois de abrir e a cada 6 horas. Também dá para pedir na hora, pelo ícone da bandeja, em **Procurar atualizações**.
+- **O aviso:** se houver versão nova, aparece uma janela do Windows com **Atualizar agora**, **Depois**, **Pular esta versão** e **Ver novidades**. Nada é baixado sem você aceitar.
+- **Ao atualizar:**
+  1. o Lume baixa o zip da release e confere o tamanho e o SHA-256;
+  2. extrai o zip, fecha e substitui os arquivos da pasta;
+  3. abre de novo e mostra "Lume atualizado para a vX.Y.Z".
+  
+  Arquivos que você colocou na pasta, como um `cloudflared.exe`, não são apagados.
+- **Se algo der errado:** você continua na versão atual e recebe um aviso, com a opção de baixar manualmente.
+- **Limitações:**
+  - só funciona no `Lume.exe` gerado, não no `npm start`;
+  - a pasta do Lume precisa aceitar escrita, então não funciona dentro de "Arquivos de Programas".
+
+### Publicar uma versão nova
+
+O atualizador só reconhece releases que seguem este padrão:
+
+1. Atualize `"version"` no `package.json`, por exemplo `1.10.0`.
+2. Gere e compacte, no PowerShell, dentro da pasta do projeto:
+   ```powershell
+   npm run dist
+   Rename-Item dist\Lume-win32-x64 Lume
+   Compress-Archive -Path dist\Lume -DestinationPath dist\Lume-v1.10.0-win-x64.zip
+   Get-FileHash dist\Lume-v1.10.0-win-x64.zip -Algorithm SHA256
+   ```
+   Dentro do zip precisa haver a pasta **`Lume`** com o `Lume.exe`.
+3. Crie a release no GitHub:
+   - **tag:** `v1.10.0`;
+   - **anexo:** `Lume-v1.10.0-win-x64.zip`;
+   - **nas notas, esta linha com o hash:**
+     ```
+     SHA-256 de `Lume-v1.10.0-win-x64.zip`: `<hash do Get-FileHash>`
+     ```
+4. Não marque como "pre-release": o atualizador ignora pré-releases e rascunhos.
 
 ### Só o servidor, sem o app
 
@@ -139,6 +177,10 @@ O Lume é um **projeto pessoal, feito para uso entre amigos de confiança**. Ele
 
 - **Servidor sem proteção contra abuso:** não verifica a origem das conexões nem limita conexões e salas.
 - **Links `http://`:** o conteúdo pode ser alterado no caminho. Use sempre o link `https://`.
+- **Atualização confia nas releases do repositório:**
+  - como o `.exe` não é assinado, quem conseguir publicar uma release neste repositório consegue distribuir uma "atualização" para todos os usuários;
+  - o SHA-256 só garante que o download chegou inteiro, não quem o publicou;
+  - mantenha a **autenticação em dois fatores** ligada na conta do GitHub.
 - **Credenciais TURN visíveis:** se configuradas, são enviadas a todos os participantes da sala.
 - **Dependências sem versão fixa:** `electron` e o empacotador estão em `latest`.
 - **Módulos nativos de terceiros:** a captura de áudio por aplicativo usa `loopback-capture` (WASAPI) e `koffi`, que trazem binários já compilados. As versões estão fixadas, e o código nativo do `loopback-capture` foi revisado antes da inclusão.
@@ -173,6 +215,7 @@ O Lume é um **projeto pessoal, feito para uso entre amigos de confiança**. Ele
 main.js            processo principal do Electron (janela, bandeja, captura, túnel)
 preload.js         ponte segura entre a página e o app
 server.js          servidor de sinalização (HTTP + WebSocket)
+updater.js         atualização automática (consulta, download, conferência e troca)
 start.html         tela inicial do app (criar ou entrar em sala)
 public/index.html  sala: interface, WebRTC, layout e sons
 build/             ícones do app e alternativas

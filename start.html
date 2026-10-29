@@ -62,6 +62,7 @@
   </div>
 
   <div id="msg"></div>
+  <p id="ver" style="color:var(--muted);font-size:12px;margin-top:18px;text-align:center"></p>
 </div>
 
 <script>
@@ -92,6 +93,9 @@ const err = new URLSearchParams(location.search).get('error');
 if (err) show('err', err);
 
 if (api) api.onStatus((text) => show('info', text));
+if (api && api.getVersion) {
+  api.getVersion().then((v) => { $('#ver').textContent = 'Lume v' + v + ' · atualizações pelo ícone da bandeja'; }).catch(() => {});
+}
 
 $('#hostBtn').onclick = async () => {
   setBusy(true);

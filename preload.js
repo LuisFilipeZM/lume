@@ -20,5 +20,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   hostStart: (opts) => ipcRenderer.invoke('host-start', opts),
   openHost: () => ipcRenderer.invoke('open-host'),
   join: (url) => ipcRenderer.invoke('join', url),
+  getVersion: () => ipcRenderer.invoke('get-version'),
   onStatus: (cb) => ipcRenderer.on('status', (_e, msg) => cb(msg)),
 });
