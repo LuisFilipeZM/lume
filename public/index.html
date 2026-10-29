@@ -122,8 +122,8 @@
     <label title="Sons de entrada, saída e compartilhamento"><input type="checkbox" id="soundChk" checked> Sons</label>
     <select id="qualitySel" title="Qualidade">
       <option value="720p30">720p · 30 fps</option>
-      <option value="1080p30" selected>1080p · 30 fps</option>
-      <option value="1080p60">1080p · 60 fps</option>
+      <option value="1080p30">1080p · 30 fps</option>
+      <option value="1080p60" selected>1080p · 60 fps</option>
     </select>
     <select id="codecSel" title="Codec de vídeo">
       <option value="h264" selected>Codec: H.264 (usa a placa de vídeo)</option>
@@ -163,7 +163,7 @@ let iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
 const peers = new Map();    // id -> { name, sharing }
 const sendPcs = new Map();  // espectador -> conexão em que EU envio minha tela
 const recvPcs = new Map();  // quem compartilha -> conexão em que EU recebo
-let shareStream = null, sharing = false, preset = PRESETS['1080p30'];
+let shareStream = null, sharing = false, preset = PRESETS['1080p60'];
 let previewTrack = null; // cópia leve da própria tela, só para a prévia
 let chain = Promise.resolve(); // processa mensagens uma por vez, na ordem
 

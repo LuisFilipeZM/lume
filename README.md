@@ -200,7 +200,7 @@ O Lume é um **projeto pessoal, feito para uso entre amigos de confiança**. Ele
 - **`.exe` sem assinatura digital:** o Windows SmartScreen mostra um alerta.
 - **Túnel gratuito da Cloudflare:** não tem garantia de disponibilidade, e a Cloudflare enxerga o tráfego de sinalização (não o vídeo).
 - **Qualquer espectador pode gravar** o que você compartilha.
-- **Upload limita o número de espectadores:** cada pessoa assistindo consome até ~5 Mbps do seu upload em 1080p30. Quem está só na prévia gasta ~0,15 Mbps.
+- **Upload limita o número de espectadores:** cada pessoa assistindo consome até ~8 Mbps do seu upload em 1080p60 (o padrão), ou ~5 Mbps em 1080p30. Quem está só na prévia gasta ~0,15 Mbps.
 - **Algumas redes bloqueiam a conexão direta:** CGNAT de operadora, 4G/5G e redes corporativas podem exigir um servidor TURN.
 - **Áudio só no Windows:**
   - o áudio por aplicativo precisa do Windows 10 versão 2004 ou mais novo, ou do Windows 11. Sem isso, a janela é compartilhada sem som;
