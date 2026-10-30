@@ -1,18 +1,15 @@
 'use strict';
 const { contextBridge, ipcRenderer } = require('electron');
 
-// API exposta às páginas. O processo principal só aceita os comandos sensíveis
-// (listar telas, escolher tela) da página da sala à qual o usuário entrou.
+// API exposta às páginas. Nada aqui permite listar telas ou capturar: a captura só acontece pelo
+// getDisplayMedia, que abre o seletor confiável do Lume e depende da escolha da pessoa.
 contextBridge.exposeInMainWorld('electronAPI', {
   isDesktop: true,
   // página da sala
-  getSources: () => ipcRenderer.invoke('get-sources'),
-  selectSource: (id) => ipcRenderer.invoke('select-source', id),
+  getShareInfo: () => ipcRenderer.invoke('get-share-info'), // o que foi escolhido no seletor
   getPublicUrl: () => ipcRenderer.invoke('get-public-url'),
   copyText: (text) => ipcRenderer.invoke('copy-text', text),
   onWindowVisibility: (cb) => ipcRenderer.on('window-visibility', (_e, visible) => cb(visible)),
-  // áudio só do aplicativo compartilhado (ou do PC sem o Lume, na tela inteira)
-  startAppAudio: (sourceId) => ipcRenderer.invoke('app-audio-start', sourceId),
   stopAppAudio: () => ipcRenderer.invoke('app-audio-stop'),
   onAppAudio: (cb) => ipcRenderer.on('app-audio-data', (_e, chunk) => cb(chunk)),
   goHome: () => ipcRenderer.invoke('go-home'),

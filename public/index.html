@@ -67,16 +67,6 @@
   #note { color: #f0b232; font-size: 13px; }
   #toast { position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%); background: #111; border: 1px solid #3b3d44; padding: 10px 16px; border-radius: 8px; font-size: 14px; max-width: 90vw; }
   #linkBox { flex: 1; min-width: 120px; max-width: 560px; font-size: 13px; }
-  /* Seletor de tela (app desktop) */
-  #picker { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; z-index: 10; }
-  #picker .box { background: var(--panel); border-radius: 10px; padding: 18px; width: min(92vw, 820px); max-height: 86vh; display: flex; flex-direction: column; gap: 10px; }
-  #picker h3 { margin: 0; }
-  #pickerBody { overflow: auto; }
-  #pickerBody h4 { margin: 12px 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
-  .srcGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
-  button.src { display: flex; flex-direction: column; gap: 6px; padding: 8px; text-align: left; font-weight: 500; font-size: 13px; }
-  button.src img { width: 100%; aspect-ratio: 16 / 9; object-fit: contain; background: #000; border-radius: 4px; }
-  button.src span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   @media (max-width: 720px) { aside, #peopleBtn { display: none; } }
 </style>
 </head>
@@ -136,14 +126,6 @@
     </select>
     <span id="note"></span>
   </footer>
-</div>
-
-<div id="picker" class="hidden">
-  <div class="box">
-    <h3>O que você quer compartilhar?</h3>
-    <div id="pickerBody"></div>
-    <div><button class="secondary" id="pickerCancel">Cancelar</button></div>
-  </div>
 </div>
 
 <div id="toast" class="hidden"></div>
@@ -482,33 +464,24 @@ $('#shareBtn').onclick = () => (sharing ? stopShare() : startShare());
 
 async function startShare() {
   preset = PRESETS[$('#qualitySel').value];
-  const wantAudio = $('#audioChk').checked;
+  let wantAudio = $('#audioChk').checked;
   const api = window.electronAPI;
-  let srcId = null;
-  let appAudioMode = null; // 'app' = só o aplicativo da janela; 'system' = PC inteiro sem o Lume
-  if (api) { // app desktop: escolhe tela/janela no seletor próprio
-    srcId = await pickSource();
-    if (!srcId) return;
-    await api.selectSource(srcId);
-    if (wantAudio && api.startAppAudio) {
-      const r = await api.startAppAudio(srcId).catch((e) => ({ ok: false, error: String(e) }));
-      if (r && r.ok) appAudioMode = r.mode;
-      else console.warn('áudio por aplicativo indisponível:', r && r.error);
-    }
-  }
-  const isWindow = !!srcId && srcId.startsWith('window:');
-  // Áudio do sistema (do jeito antigo) só no navegador ou como plano B na tela inteira.
-  // Numa janela nunca: levaria junto o som de outros programas, como o Discord.
-  const useSystemLoopback = wantAudio && !appAudioMode && !isWindow;
+  // No app, getDisplayMedia abre o seletor confiável do Lume: lá a pessoa escolhe a tela ou janela
+  // e confirma o áudio. A página só fica sabendo do resultado depois (getShareInfo).
   try {
     shareStream = await navigator.mediaDevices.getDisplayMedia({
       video: { width: { ideal: preset.w }, height: { ideal: preset.h }, frameRate: { ideal: preset.fps } },
-      audio: useSystemLoopback ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false } : false,
+      audio: wantAudio ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false } : false,
     });
   } catch (e) {
-    if (appAudioMode) api.stopAppAudio();
-    return; // usuário cancelou
+    if (api && api.stopAppAudio) api.stopAppAudio().catch(() => {});
+    return; // cancelado no seletor
   }
+  const info = api && api.getShareInfo ? await api.getShareInfo().catch(() => null) : null;
+  const isWindow = !!info && info.kind === 'window';
+  if (info) wantAudio = !!info.audioChosen; // a escolha final do áudio é feita no seletor
+  // 'app' = só o aplicativo da janela; 'system' = PC inteiro sem o Lume (chegam pelo app, em PCM)
+  let appAudioMode = info && (info.audio === 'app' || info.audio === 'system') ? info.audio : null;
   if (appAudioMode) {
     try {
       shareStream.addTrack(await createPcmTrack());
@@ -536,6 +509,8 @@ async function startShare() {
     toast('Áudio: só o som deste aplicativo.');
   } else if (appAudioMode === 'system') {
     toast('Áudio: todo o som do PC, menos o do Lume. Para enviar só um aplicativo, compartilhe a janela dele.');
+  } else if (info && info.audio === 'loopback') {
+    toast('Áudio: todo o som do PC, incluindo o do Lume. Use fones para evitar eco.');
   }
 
   sharing = true;
@@ -680,43 +655,6 @@ function preferCodec(pc) {
       if (t.sender.track && t.sender.track.kind === 'video') t.setCodecPreferences(sorted);
     }
   } catch (e) { console.warn('preferCodec', e); }
-}
-
-// Seletor de tela/janela (app desktop)
-async function pickSource() {
-  let list;
-  try { list = await window.electronAPI.getSources(); }
-  catch (e) { toast('Não foi possível listar as telas.'); return null; }
-  return new Promise((resolve) => {
-    const box = $('#picker'), body = $('#pickerBody');
-    body.innerHTML = '';
-    // ao fechar, descarta as miniaturas (imagens em memória)
-    const close = (id) => { box.classList.add('hidden'); body.innerHTML = ''; resolve(id); };
-    const section = (title, items) => {
-      if (!items.length) return;
-      const h = document.createElement('h4');
-      h.textContent = title;
-      body.append(h);
-      const grid = document.createElement('div');
-      grid.className = 'srcGrid';
-      for (const s of items) {
-        const b = document.createElement('button');
-        b.className = 'src secondary';
-        const img = document.createElement('img');
-        img.src = s.thumbnail;
-        const label = document.createElement('span');
-        label.textContent = s.name;
-        b.append(img, label);
-        b.onclick = () => close(s.id);
-        grid.append(b);
-      }
-      body.append(grid);
-    };
-    section('Telas', list.filter((s) => s.id.startsWith('screen:')));
-    section('Janelas', list.filter((s) => !s.id.startsWith('screen:')));
-    $('#pickerCancel').onclick = () => close(null);
-    box.classList.remove('hidden');
-  });
 }
 
 // ---------- resolução sob medida para cada espectador ----------

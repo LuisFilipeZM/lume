@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>Lume – escolher o que compartilhar</title>
+<style>
+  :root { --bg:#1e1f22; --panel:#2b2d31; --panel2:#313338; --text:#f2f3f5; --muted:#949ba4; --accent:#5865f2; --accent-h:#4752c4; --warn:#f0b232; --ok:#23a559; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; font-family: system-ui, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; }
+  header { padding: 16px 18px 10px; }
+  h1 { margin: 0 0 10px; font-size: 18px; }
+  .who { border-radius: 8px; padding: 10px 12px; font-size: 14px; line-height: 1.45; background: var(--panel); border-left: 4px solid var(--ok); }
+  .who.remote { border-left-color: var(--warn); }
+  .who b { overflow-wrap: anywhere; }
+  main { flex: 1; overflow: auto; padding: 4px 18px 12px; }
+  h2 { margin: 14px 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+  .src { all: unset; cursor: pointer; display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 8px; background: var(--panel2); border: 2px solid transparent; }
+  .src:hover { background: #3b3d44; }
+  .src:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .src.sel { border-color: var(--accent); background: #3b3d44; }
+  .thumb { width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 4px; display: flex; align-items: center; justify-content: center; overflow: hidden; color: var(--muted); font-size: 12px; }
+  .thumb img { width: 100%; height: 100%; object-fit: contain; }
+  .name { display: flex; gap: 6px; align-items: center; font-size: 13px; min-width: 0; }
+  .name img { width: 16px; height: 16px; flex: none; }
+  .name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .empty { color: var(--muted); font-size: 14px; padding: 20px 0; }
+  footer { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 18px; background: var(--panel); border-top: 1px solid #1e1f22; }
+  footer label { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; flex: 1; min-width: 240px; }
+  footer label input { margin-top: 3px; }
+  .hint { color: var(--muted); font-size: 12px; display: block; }
+  button { cursor: pointer; border: 0; border-radius: 6px; padding: 9px 18px; background: var(--accent); color: #fff; font: inherit; font-weight: 600; }
+  button:hover { background: var(--accent-h); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.secondary { background: var(--panel2); }
+  button.secondary:hover { background: #3b3d44; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>O que você quer compartilhar?</h1>
+  <div id="who" class="who"></div>
+</header>
+<main id="list"></main>
+<footer>
+  <label id="audioRow" class="hidden">
+    <input type="checkbox" id="audioChk">
+    <span>Compartilhar áudio <span class="hint" id="audioHint"></span></span>
+  </label>
+  <span style="flex:1" id="spacer"></span>
+  <button class="secondary" id="cancelBtn">Cancelar</button>
+  <button id="okBtn" disabled>Compartilhar</button>
+</footer>
+
+<script>
+'use strict';
+const $ = (s) => document.querySelector(s);
+let data = null;
+let selected = null;
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text; // nomes de janelas vêm de outros programas: sempre como texto
+  return e;
+}
+
+function updateAudioHint() {
+  const src = data && data.sources.find((s) => s.id === selected);
+  $('#audioHint').textContent = !src
+    ? 'Escolha uma tela ou janela.'
+    : src.kind === 'window'
+      ? 'Só o som deste aplicativo.'
+      : 'Todo o som do PC, menos o do Lume (inclui Discord e notificações).';
+}
+
+function select(id) {
+  selected = id;
+  for (const b of document.querySelectorAll('.src')) b.classList.toggle('sel', b.dataset.id === id);
+  $('#okBtn').disabled = !id;
+  updateAudioHint();
+}
+
+function confirm() {
+  if (!selected) return;
+  window.picker.choose(selected, !$('#audioRow').classList.contains('hidden') && $('#audioChk').checked);
+}
+
+function render(d) {
+  data = d;
+  const who = $('#who');
+  who.textContent = '';
+  if (d.isLocal) {
+    who.append('Pedido pela sua sala, criada neste computador (', el('b', null, d.host), ').');
+  } else {
+    who.classList.add('remote');
+    who.append('⚠️ Pedido pela sala de outra pessoa: ', el('b', null, d.host), '. ',
+      'Quem criou essa sala vai receber o que você compartilhar. Continue só se você confia nela. ',
+      'Se você não clicou em “Compartilhar tela”, cancele.');
+  }
+
+  const list = $('#list');
+  list.textContent = '';
+  const section = (title, items) => {
+    if (!items.length) return;
+    list.append(el('h2', null, title));
+    const grid = el('div', 'grid');
+    for (const s of items) {
+      const b = el('button', 'src');
+      b.dataset.id = s.id;
+      b.title = s.name;
+      const thumb = el('div', 'thumb');
+      if (s.thumbnail) { const img = el('img'); img.src = s.thumbnail; img.alt = ''; thumb.append(img); }
+      else thumb.textContent = 'sem prévia';
+      const name = el('div', 'name');
+      if (s.icon) { const ic = el('img'); ic.src = s.icon; ic.alt = ''; name.append(ic); }
+      name.append(el('span', null, s.name || '(sem nome)'));
+      b.append(thumb, name);
+      b.onclick = () => select(s.id);
+      b.ondblclick = () => { select(s.id); confirm(); };
+      grid.append(b);
+    }
+    list.append(grid);
+  };
+  section('Telas', d.sources.filter((s) => s.kind === 'screen'));
+  section('Janelas', d.sources.filter((s) => s.kind === 'window'));
+  if (!d.sources.length) list.append(el('p', 'empty', 'Nenhuma tela ou janela encontrada.'));
+
+  if (d.audioRequested && d.audioSupported) {
+    $('#audioRow').classList.remove('hidden');
+    $('#audioChk').checked = true;
+  }
+  updateAudioHint();
+  const first = document.querySelector('.src');
+  if (first) first.focus();
+}
+
+$('#okBtn').onclick = confirm;
+$('#cancelBtn').onclick = () => window.picker.cancel();
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') window.picker.cancel();
+  if (e.key === 'Enter' && selected && !(e.target && e.target.classList && e.target.classList.contains('src'))) confirm();
+});
+window.picker.onData(render);
+</script>
+</body>
+</html>

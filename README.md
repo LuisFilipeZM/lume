@@ -26,6 +26,7 @@ Quem só quer **assistir** não precisa instalar nada: o link abre no navegador.
 ## Recursos
 
 - **Salas por link:** crie uma sala e copie o link público com um clique.
+- **Seletor de tela confiável:** toda captura passa por uma janela do próprio Lume, que mostra quem está pedindo. Nenhuma página consegue capturar sua tela ou seu áudio sem a sua escolha.
 - **Tela ou janela, com o áudio certo:**
   - **Janela:** vai junto só o som daquele aplicativo. O Discord e outros programas não vazam para quem assiste.
   - **Tela inteira:** vai todo o som do PC, menos o do próprio Lume, o que evita eco de quem você está assistindo.
@@ -99,7 +100,7 @@ npm start
 
 - **Criar uma sala:** inicia o servidor. Deixe "Criar link público" marcado, entre na sala e clique em **Copiar link** para mandar aos amigos.
 - **Entrar na sala de um amigo:** cole o link que ele te mandou.
-- **Compartilhar:** clique em **Compartilhar tela**, escolha a tela ou janela e pronto. Na barra de baixo você ajusta áudio, qualidade, codec e prioridade (movimento ou nitidez).
+- **Compartilhar:** clique em **Compartilhar tela**. O Lume abre o seletor: escolha a tela ou janela, confirme se quer o áudio e clique em **Compartilhar**. Na barra de baixo você ajusta qualidade, codec e prioridade (movimento ou nitidez).
 
 ### Gerar o executável
 
@@ -168,11 +169,13 @@ Abre em http://localhost:3000. Para compartilhar pelo navegador fora do seu PC �
 
 O Lume é um **projeto pessoal, feito para uso entre amigos de confiança**. Ele não passou por auditoria de segurança. Antes de usar, conheça os pontos abaixo.
 
-### Risco alto
-
-- **Entrar no link de outra pessoa dá a ela acesso à sua tela.** Ao entrar na sala de alguém pelo app, a página dessa pessoa roda dentro do Lume com permissão para capturar a tela e o áudio do sistema, **sem pedir confirmação**. Um link malicioso, ou um amigo com o PC comprometido, poderia gravar sua tela principal e o som do PC sem você perceber. **Só entre em links de quem você confia.** Para apenas assistir a um link desconhecido, prefira o navegador.
-
 ### Risco médio
+
+- **Entrar na sala de outra pessoa roda o código dela dentro do Lume.**
+  - **O que mudou:** desde o seletor confiável, essa página **não consegue capturar sua tela nem seu áudio sem você escolher** no seletor do Lume, que avisa em destaque quando o pedido vem da sala de outra pessoa.
+  - **O que continua:** se você compartilhar, quem criou a sala recebe a imagem e o som e pode gravar ou repassar.
+  - **Atenção:** se o seletor aparecer sem você ter clicado em **Compartilhar tela**, cancele.
+  - **Na dúvida:** prefira entrar em links de quem você confia. Para só assistir a um link desconhecido, use o navegador.
 
 - **Sem senha, o link é a única proteção.** Numa sala aberta, quem tiver o link entra e vê tudo o que for compartilhado.
   - **Use senha** se o link puder circular, e não publique o link em lugares abertos.
@@ -209,12 +212,17 @@ O Lume é um **projeto pessoal, feito para uso entre amigos de confiança**. Ele
 ### O que já está protegido
 
 - Vídeo e áudio são criptografados de ponta a ponta pelo WebRTC.
+- **Seletor de tela confiável:**
+  - a captura só começa depois da escolha numa janela do próprio Lume, isolada da página;
+  - a página não lista telas nem janelas, não vê miniaturas e não consegue ligar a captura de áudio;
+  - pedidos sem clique do usuário, de outra origem ou repetidos logo após um cancelamento são recusados;
+  - a forma antiga do Electron de capturar a tela também é bloqueada.
 - A interface isola a página do sistema: sem acesso ao Node.js e com `contextIsolation` ligado. A janela não navega para fora da sala.
 - Nomes de usuário e de sala são exibidos como texto, sem executar código.
 
 ## Próximos passos
 
-- [ ] Seletor de tela confiável no próprio app, para que nenhuma página consiga capturar sem confirmação
+- [x] Seletor de tela confiável no próprio app, para que nenhuma página consiga capturar sem confirmação
 - [ ] Servidor escutando só em `127.0.0.1` por padrão
 - [x] Senha da sala
 - [ ] Aprovação de novos participantes por quem criou a sala
@@ -227,6 +235,8 @@ O Lume é um **projeto pessoal, feito para uso entre amigos de confiança**. Ele
 ```
 main.js            processo principal do Electron (janela, bandeja, captura, túnel)
 preload.js         ponte segura entre a página e o app
+picker.html        seletor de tela confiável (janela própria do app)
+picker-preload.js  ponte do seletor, isolada da página da sala
 server.js          servidor de sinalização (HTTP + WebSocket)
 updater.js         atualização automática (consulta, download, conferência e troca)
 start.html         tela inicial do app (criar ou entrar em sala)
