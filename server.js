@@ -104,7 +104,9 @@ function broadcast(members, obj, exceptId) {
   }
 }
 
-function startServer(port = 3000, host = '0.0.0.0') {
+// Por padrão escuta só nesta máquina (127.0.0.1): quem está de fora chega pelo túnel
+// da Cloudflare, que conecta localmente. Para aceitar a rede local, passe host = '0.0.0.0'.
+function startServer(port = 3000, host = '127.0.0.1') {
   return new Promise((resolve, reject) => {
     const server = http.createServer(serveStatic);
 
@@ -202,8 +204,10 @@ function startServer(port = 3000, host = '0.0.0.0') {
     });
 
     server.listen(port, host, () => {
+      const addr = /** @type {import('net').AddressInfo} */ (server.address());
       resolve({
-        port: /** @type {import('net').AddressInfo} */ (server.address()).port,
+        port: addr.port,
+        host: addr.address,
         close() {
           clearInterval(heartbeat);
           for (const ws of wss.clients) ws.terminate();
@@ -219,8 +223,9 @@ module.exports = { startServer };
 
 if (require.main === module) {
   const PORT = Number(process.env.PORT) || 3000;
-  startServer(PORT).then((h) => {
-    console.log(`Lume rodando em http://localhost:${h.port}`);
+  const HOST = process.env.HOST || '127.0.0.1';
+  startServer(PORT, HOST).then((h) => {
+    console.log(`Lume rodando em http://127.0.0.1:${h.port}` + (h.host === '127.0.0.1' ? '' : ` (escutando em ${h.host})`));
   }).catch((err) => {
     console.error('Erro ao iniciar:', err.message);
     process.exit(1);

@@ -163,3 +163,12 @@ test('não serve nada fora da pasta da página', async () => {
   assert.equal(await rawGet('/', 'POST'), 405, 'só GET/HEAD');
   assert.equal(await rawGet('/', 'HEAD'), 200);
 });
+
+test('por padrão escuta só nesta máquina (127.0.0.1)', async () => {
+  const h = await startServer(0);
+  try {
+    assert.equal(h.host, '127.0.0.1');
+  } finally {
+    h.close();
+  }
+});

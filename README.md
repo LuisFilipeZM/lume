@@ -167,7 +167,7 @@ Get-FileHash dist\Lume-vX.Y.Z-win-x64.zip -Algorithm SHA256
 npm run server
 ```
 
-Abre em http://localhost:3000. Para compartilhar pelo navegador fora do seu PC é preciso HTTPS (por exemplo, `cloudflared tunnel --url http://127.0.0.1:3000`).
+Abre em http://127.0.0.1:3000. Por padrão o servidor só aceita conexões desta máquina; para liberar a rede local, rode com `HOST=0.0.0.0` (no PowerShell: `$env:HOST='0.0.0.0'; npm run server`). Para compartilhar pelo navegador fora do seu PC é preciso HTTPS (por exemplo, `cloudflared tunnel --url http://127.0.0.1:3000`).
 
 ## Testes
 
@@ -219,7 +219,6 @@ O Lume é um **projeto pessoal, feito para uso entre amigos de confiança**. Ele
     - depois de 5 tentativas erradas, o IP fica bloqueado por 1 minuto;
     - a senha protege a entrada na sala, mas **não é uma senha forte contra ataques**: use algo que não seja óbvio.
   - **Não há aprovação** de novos participantes por quem criou a sala.
-- **O servidor aceita conexões da rede local.** Qualquer pessoa no mesmo Wi-Fi consegue acessar `http://SEU-IP:3000`.
 - **Seu IP fica visível para quem está na sala.** Como a conexão é direta (P2P), os participantes veem o IP público uns dos outros.
 - **Você pode mostrar mais do que pretende.** Compartilhar a tela inteira expõe notificações, mensagens e outras janelas. O áudio também vai inteiro, incluindo chamadas do Discord e notificações. Prefira compartilhar só uma janela: assim vai apenas a imagem e o som daquele aplicativo.
 
