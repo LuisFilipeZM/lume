@@ -27,6 +27,9 @@
   .name img { width: 16px; height: 16px; flex: none; }
   .name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .empty { color: var(--muted); font-size: 14px; padding: 20px 0; }
+  .bar { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .tip { flex: 1; color: var(--muted); font-size: 12px; line-height: 1.4; }
+  #refreshBtn { padding: 6px 12px; font-size: 13px; font-weight: 500; }
   footer { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 18px; background: var(--panel); border-top: 1px solid #1e1f22; }
   footer label { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; flex: 1; min-width: 240px; }
   footer label input { margin-top: 3px; }
@@ -43,6 +46,10 @@
 <header>
   <h1>O que você quer compartilhar?</h1>
   <div id="who" class="who"></div>
+  <div class="bar">
+    <span class="tip">Não achou o jogo? Abra o jogo antes e clique em <b>Atualizar</b>. Jogos em <b>tela cheia exclusiva</b> costumam não aparecer: use o modo <b>janela sem bordas</b> (borderless) no jogo ou compartilhe a tela inteira.</span>
+    <button class="secondary" id="refreshBtn" title="Buscar de novo as telas e janelas abertas">↻ Atualizar</button>
+  </div>
 </header>
 <main id="list"></main>
 <footer>
@@ -89,20 +96,11 @@ function confirm() {
   window.picker.choose(selected, !$('#audioRow').classList.contains('hidden') && $('#audioChk').checked);
 }
 
-function render(d) {
-  data = d;
-  const who = $('#who');
-  who.textContent = '';
-  if (d.isLocal) {
-    who.append('Pedido pela sua sala, criada neste computador (', el('b', null, d.host), ').');
-  } else {
-    who.classList.add('remote');
-    who.append('⚠️ Pedido pela sala de outra pessoa: ', el('b', null, d.host), '. ',
-      'Quem criou essa sala vai receber o que você compartilhar. Continue só se você confia nela. ',
-      'Se você não clicou em “Compartilhar tela”, cancele.');
-  }
-
+// Monta a grade de telas e janelas mantendo a escolha e a rolagem (usada também ao atualizar)
+function renderList(sources) {
+  data.sources = sources;
   const list = $('#list');
+  const scroll = list.scrollTop;
   list.textContent = '';
   const section = (title, items) => {
     if (!items.length) return;
@@ -125,9 +123,46 @@ function render(d) {
     }
     list.append(grid);
   };
-  section('Telas', d.sources.filter((s) => s.kind === 'screen'));
-  section('Janelas', d.sources.filter((s) => s.kind === 'window'));
-  if (!d.sources.length) list.append(el('p', 'empty', 'Nenhuma tela ou janela encontrada.'));
+  section('Telas', sources.filter((s) => s.kind === 'screen'));
+  section('Janelas', sources.filter((s) => s.kind === 'window'));
+  if (!sources.length) list.append(el('p', 'empty', 'Nenhuma tela ou janela encontrada.'));
+  list.scrollTop = scroll;
+  // a janela escolhida pode ter fechado: nesse caso a escolha é desfeita
+  select(sources.some((s) => s.id === selected) ? selected : null);
+}
+
+let refreshing = false;
+function refresh() {
+  if (refreshing || !data) return;
+  refreshing = true;
+  $('#refreshBtn').disabled = true;
+  $('#refreshBtn').textContent = '↻ Atualizando…';
+  window.picker.refresh();
+}
+window.picker.onSources((sources) => {
+  renderList(sources);
+  refreshing = false;
+  $('#refreshBtn').disabled = false;
+  $('#refreshBtn').textContent = '↻ Atualizar';
+});
+$('#refreshBtn').onclick = refresh;
+// voltou para o seletor (por exemplo, depois de abrir o jogo): atualiza sozinho
+window.addEventListener('focus', () => { if (data) refresh(); });
+
+function render(d) {
+  data = d;
+  const who = $('#who');
+  who.textContent = '';
+  if (d.isLocal) {
+    who.append('Pedido pela sua sala, criada neste computador (', el('b', null, d.host), ').');
+  } else {
+    who.classList.add('remote');
+    who.append('⚠️ Pedido pela sala de outra pessoa: ', el('b', null, d.host), '. ',
+      'Quem criou essa sala vai receber o que você compartilhar. Continue só se você confia nela. ',
+      'Se você não clicou em “Compartilhar tela”, cancele.');
+  }
+
+  renderList(d.sources);
 
   if (d.audioRequested && d.audioSupported) {
     $('#audioRow').classList.remove('hidden');

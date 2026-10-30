@@ -529,7 +529,23 @@ function sameFrame(a, b) {
   return !!(a && b && a.processId === b.processId && a.routingId === b.routingId);
 }
 
-function showCapturePicker(data) {
+// Lista de telas e janelas no formato que o seletor mostra
+async function listCaptureSources() {
+  const sources = await desktopCapturer.getSources({
+    types: ['screen', 'window'], thumbnailSize: { width: 320, height: 180 }, fetchWindowIcons: true,
+  });
+  const forPicker = sources.map((s) => ({
+    id: s.id,
+    name: s.name,
+    kind: s.id.startsWith('screen:') ? 'screen' : 'window',
+    thumbnail: s.thumbnail && !s.thumbnail.isEmpty() ? s.thumbnail.toDataURL() : '',
+    icon: s.appIcon && !s.appIcon.isEmpty() ? s.appIcon.toDataURL() : '',
+  }));
+  return { sources, forPicker };
+}
+
+// refresh(): busca a lista de novo (jogo aberto depois do seletor, janela que mudou de modo...)
+function showCapturePicker(data, refresh) {
   return new Promise((resolve) => {
     const pw = new BrowserWindow({
       parent: win && !win.isDestroyed() ? win : undefined,
@@ -549,6 +565,7 @@ function showCapturePicker(data) {
       if (done) return;
       done = true;
       ipcMain.removeListener('picker-result', onResult);
+      ipcMain.removeListener('picker-refresh', onRefresh);
       if (pickerWin === pw) pickerWin = null;
       if (!pw.isDestroyed()) pw.destroy();
       resolve(result);
@@ -557,7 +574,18 @@ function showCapturePicker(data) {
       if (e.sender !== pw.webContents) return; // só a própria janela do seletor responde
       finish(r && typeof r.id === 'string' ? { id: r.id, audio: !!r.audio } : null);
     };
+    let refreshing = false;
+    const onRefresh = async (e) => {
+      if (e.sender !== pw.webContents || refreshing || done) return;
+      refreshing = true;
+      try {
+        const list = await refresh();
+        if (!done && !pw.isDestroyed()) pw.webContents.send('picker-sources', list);
+      } catch {}
+      refreshing = false;
+    };
     ipcMain.on('picker-result', onResult);
+    ipcMain.on('picker-refresh', onRefresh);
     pw.on('closed', () => finish(null));
     pw.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     pw.webContents.on('will-navigate', (ev) => ev.preventDefault());
@@ -588,9 +616,7 @@ async function handleDisplayMediaRequest(request, callback) {
     if (pickerWin) return deny('já existe um seletor aberto');
     if ((pickerCooldown.get(origin) || 0) > Date.now()) return deny('pedido repetido logo após cancelar');
 
-    const sources = await desktopCapturer.getSources({
-      types: ['screen', 'window'], thumbnailSize: { width: 320, height: 180 }, fetchWindowIcons: true,
-    });
+    let { sources, forPicker } = await listCaptureSources();
     const isLocal = !!localUrl && origin === new URL(localUrl).origin;
     const choice = await showCapturePicker({
       origin,
@@ -598,13 +624,10 @@ async function handleDisplayMediaRequest(request, callback) {
       isLocal,
       audioRequested: !!request.audioRequested,
       audioSupported: process.platform === 'win32',
-      sources: sources.map((s) => ({
-        id: s.id,
-        name: s.name,
-        kind: s.id.startsWith('screen:') ? 'screen' : 'window',
-        thumbnail: s.thumbnail && !s.thumbnail.isEmpty() ? s.thumbnail.toDataURL() : '',
-        icon: s.appIcon && !s.appIcon.isEmpty() ? s.appIcon.toDataURL() : '',
-      })),
+      sources: forPicker,
+    }, async () => {
+      ({ sources, forPicker } = await listCaptureSources()); // a escolha é conferida na lista mais recente
+      return forPicker;
     });
     if (!choice) {
       pickerCooldown.set(origin, Date.now() + 2000);

@@ -5,6 +5,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 // de captura: a página da sala não tem acesso a nada disto.
 contextBridge.exposeInMainWorld('picker', {
   onData: (cb) => ipcRenderer.on('picker-data', (_e, data) => cb(data)),
+  onSources: (cb) => ipcRenderer.on('picker-sources', (_e, list) => cb(list)),
+  refresh: () => ipcRenderer.send('picker-refresh'),
   choose: (id, audio) => ipcRenderer.send('picker-result', { id: String(id), audio: !!audio }),
   cancel: () => ipcRenderer.send('picker-result', null),
 });
