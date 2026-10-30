@@ -253,15 +253,25 @@ O Lume é um **projeto pessoal, feito para uso entre amigos de confiança**. Ele
 ## Estrutura
 
 ```
-main.js            processo principal do Electron (janela, bandeja, captura, túnel)
-preload.js         ponte segura entre a página e o app
-picker.html        seletor de tela confiável (janela própria do app)
-picker-preload.js  ponte do seletor, isolada da página da sala
-server.js          servidor de sinalização (HTTP + WebSocket)
-updater.js         atualização automática (consulta, download, conferência e troca)
-tests/unit/        testes rápidos (node:test)
-tests/e2e/         testes completos (Playwright: navegador e app Electron)
-start.html         tela inicial do app (criar ou entrar em sala)
-public/index.html  sala: interface, WebRTC, layout e sons
-build/             ícones do app e alternativas
+app/                    processo principal do Electron
+  index.js              inicialização: modo atualizador, instância única, liga as partes
+  ipc.js                todos os canais chamados pelas páginas e quem pode chamar cada um
+  window.js             janela, bandeja e navegação (tela inicial <-> sala)
+  room-host.js          servidor da sala nesta máquina e túnel público
+  updates.js            avisos e fluxo de atualização
+  capture/picker.js     seletor de tela confiável (toda captura passa por ele)
+  capture/app-audio.js  áudio por aplicativo
+  state.js, paths.js    estado compartilhado e caminhos
+preload.js              ponte segura entre as páginas e o app
+picker.html             janela do seletor de tela
+picker-preload.js       ponte do seletor, isolada da página da sala
+server.js               servidor de sinalização (HTTP + WebSocket, salas e senha)
+updater.js              atualização: consulta, download conferido, extração e troca de arquivos
+start.html              tela inicial do app (criar ou entrar em sala)
+public/index.html       sala: interface, WebRTC, layout e sons
+build/                  ícones do app e alternativas
+tests/unit/             testes rápidos (node:test)
+tests/e2e/              testes completos (Playwright: navegador e app Electron)
 ```
+
+**Para adicionar um canal entre a página e o app:** declare-o na tabela de `app/ipc.js`, dizendo quem pode chamá-lo (`start` ou `room`), e exponha-o no `preload.js`. O teste `tests/unit/ipc.test.js` falha se os dois não baterem.

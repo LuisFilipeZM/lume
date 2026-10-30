@@ -30,6 +30,30 @@ test('tela inicial mostra a versão e a sala não tem acesso às funções de ca
   assert.notEqual(legado, 'capturou');
 });
 
+test('canais: a tela inicial e a sala só conseguem chamar os próprios canais', { timeout: 60000 }, async (t) => {
+  const app = await launchApp();
+  t.after(() => app.cleanup());
+  const win = await app.firstWindow();
+  await win.waitForSelector('#hostBtn');
+  const tenta = (fn) => win.evaluate(`(${fn})().then(() => 'permitido', (e) => /não autorizado/.test(e.message) ? 'recusado' : 'erro: ' + e.message)`);
+
+  // na tela inicial: canais da sala são recusados
+  for (const fn of ['() => window.electronAPI.copyText("x")', '() => window.electronAPI.getPublicUrl()',
+    '() => window.electronAPI.getShareInfo()', '() => window.electronAPI.goHome()', '() => window.electronAPI.stopAppAudio()']) {
+    assert.equal(await tenta(fn), 'recusado', `tela inicial: ${fn}`);
+  }
+  assert.equal(await tenta('() => window.electronAPI.getVersion()'), 'permitido');
+
+  // na sala: canais da tela inicial são recusados
+  await hostRoom(app, win);
+  for (const fn of ['() => window.electronAPI.getVersion()', '() => window.electronAPI.hostStart({ port: 1 })',
+    '() => window.electronAPI.openHost()', '() => window.electronAPI.join("http://exemplo.com")']) {
+    assert.equal(await tenta(fn), 'recusado', `sala: ${fn}`);
+  }
+  assert.equal(await tenta('() => window.electronAPI.getPublicUrl()'), 'permitido');
+  assert.match(win.url(), /^http:\/\/127\.0\.0\.1:/, 'continua na sala (o join recusado não navegou)');
+});
+
 test('seletor confiável: abre no clique, cancela, recusa repetição e libera só o escolhido', { timeout: 90000 }, async (t) => {
   const app = await launchApp();
   t.after(() => app.cleanup());
