@@ -1,0 +1,15 @@
+{
+  "tag_name": "v1.9.0",
+  "name": "",
+  "draft": false,
+  "prerelease": false,
+  "html_url": "https://github.com/LuisFilipeZM/lume/releases/tag/v1.9.0",
+  "body": "## Novidades\r\n\r\n- **Áudio só do aplicativo:**\r\n  - ao compartilhar uma **janela**, vai junto apenas o som daquele aplicativo. O Discord e outros programas não vazam, e quem assiste não se ouve mais;\r\n  - na **tela inteira**, vai todo o som do PC, menos o do próprio Lume.\r\n- **Prévia antes de assistir** (desde a v1.8.0):\r\n  - quem compartilha envia só uma prévia leve, sem som;\r\n  - cada pessoa clica em **▶ Assistir** para receber a qualidade total com áudio, e no **✕** volta para a prévia;\r\n  - quem compartilha vê quantas pessoas estão assistindo.\r\n\r\n## Download\r\n\r\nBaixe **`Lume-v1.9.0-win-x64.zip`** abaixo, descompacte e abra `Lume.exe`. Não precisa instalar nada.\r\n\r\n> Mantenha a pasta inteira: o `Lume.exe` depende dos outros arquivos dela.\r\n\r\n**Requisitos:** Windows 10 versão 2004 ou mais novo, ou Windows 11.\r\n\r\n**Primeira execução:**\r\n- O Windows SmartScreen vai avisar \"aplicativo não reconhecido\", porque o executável não tem assinatura digital. Clique em **Mais informações → Executar assim mesmo**.\r\n- O Firewall do Windows vai pedir permissão. Libere para redes privadas.\r\n- Para gerar o link público da sala, instale o cloudflared: `winget install --id Cloudflare.cloudflared`\r\n\r\n## Limitações conhecidas\r\n\r\n- Apps da Microsoft Store podem ficar sem som ao compartilhar a janela deles. Nesse caso, compartilhe a tela inteira.\r\n\r\n## ⚠️ Antes de usar\r\n\r\nO Lume é um projeto pessoal, feito para amigos de confiança, e não passou por auditoria de segurança. **Entrar pelo app no link de alguém dá a essa pessoa acesso à sua tela, sem confirmação.** Só entre em links de quem você confia. A lista completa de riscos está no [[README](https://github.com/LuisFilipeZM/lume#riscos-e-limita%C3%A7%C3%B5es)](https://github.com/LuisFilipeZM/lume#riscos-e-limitações).\r\n\r\n---\r\nSHA-256 de `Lume-v1.9.0-win-x64.zip`: `f751eaed9ff02522f8c6098cdff5cc0a45cc3e9457c07573b1a94fb3109ceccb`",
+  "assets": [
+    {
+      "name": "Lume-v1.9.0-win-x64.zip",
+      "size": 158697545,
+      "browser_download_url": "https://github.com/LuisFilipeZM/lume/releases/download/v1.9.0/Lume-v1.9.0-win-x64.zip"
+    }
+  ]
+}

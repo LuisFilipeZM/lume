@@ -206,7 +206,7 @@ function argValue(argv, key) {
 }
 
 // Inicia a versão nova em modo atualizador e espera ela confirmar que está rodando.
-async function startApplyProcess({ newExe, target, pid, workDir, log }) {
+async function startApplyProcess({ newExe, target, pid, workDir, log, readyTimeoutMs = 20000 }) {
   const ready = path.join(workDir, 'pronto');
   try { fs.rmSync(ready, { force: true }); } catch {}
   const child = spawn(newExe, [
@@ -215,7 +215,7 @@ async function startApplyProcess({ newExe, target, pid, workDir, log }) {
   await new Promise((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); });
   child.unref();
   log(`atualizador iniciado (processo ${child.pid}); esperando confirmação`);
-  if (!(await waitForFile(ready, 20000))) {
+  if (!(await waitForFile(ready, readyTimeoutMs))) {
     try { child.kill(); } catch {}
     throw new Error('o atualizador não começou a rodar (pode ter sido bloqueado pelo antivírus)');
   }

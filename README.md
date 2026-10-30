@@ -157,6 +157,26 @@ npm run server
 
 Abre em http://localhost:3000. Para compartilhar pelo navegador fora do seu PC é preciso HTTPS (por exemplo, `cloudflared tunnel --url http://127.0.0.1:3000`).
 
+## Testes
+
+Requer Node.js 22 ou mais novo.
+
+```bash
+npm test            # rápidos (segundos): servidor, senha, bloqueio e atualizador
+npm run test:e2e    # completos (~1 min): sala no navegador e app Electron, incluindo o seletor
+npm run test:all    # os dois
+```
+
+- Os testes completos usam o Playwright. Na primeira vez, rode `npx playwright install chromium`.
+- Eles abrem o app com uma pasta de dados própria, então funcionam mesmo com o Lume aberto.
+- **No Linux**, rode os completos com um servidor gráfico virtual: `xvfb-run -a npm run test:e2e`.
+
+**O que fica de fora** (só dá para testar à mão, no Windows):
+- a captura real da tela e do áudio por aplicativo;
+- a troca de arquivos e a reabertura da atualização automática.
+
+Nos testes, as telas e o áudio são simulados.
+
 ## Configuração
 
 | O quê | Como |
@@ -239,6 +259,8 @@ picker.html        seletor de tela confiável (janela própria do app)
 picker-preload.js  ponte do seletor, isolada da página da sala
 server.js          servidor de sinalização (HTTP + WebSocket)
 updater.js         atualização automática (consulta, download, conferência e troca)
+tests/unit/        testes rápidos (node:test)
+tests/e2e/         testes completos (Playwright: navegador e app Electron)
 start.html         tela inicial do app (criar ou entrar em sala)
 public/index.html  sala: interface, WebRTC, layout e sons
 build/             ícones do app e alternativas

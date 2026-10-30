@@ -6,6 +6,10 @@ const { spawn } = require('child_process');
 const { startServer } = require('./server');
 const updater = require('./updater');
 
+// Testes automáticos: pasta de dados separada, para rodarem mesmo com o Lume aberto
+// (cada pasta de dados tem a sua trava de "uma cópia por vez")
+if (process.env.LUME_USER_DATA) app.setPath('userData', process.env.LUME_USER_DATA);
+
 // ---------- modo atualizador ----------
 // A versão nova, extraída na pasta temporária, é aberta com --lume-apply-update para trocar os
 // arquivos da pasta do Lume. Nesse modo não há janela, bandeja nem servidor: copia, reabre e sai.
