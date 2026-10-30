@@ -11,7 +11,7 @@
 // Sem PowerShell nem scripts: antivírus costumam bloquear esse padrão em silêncio.
 // Tudo fica registrado em atualizacao.log, na pasta de dados do Lume.
 //
-// Requisitos de cada release (veja o README): tag vX.Y.Z, um anexo Lume-vX.Y.Z-win-x64.zip
+// Requisitos de cada release (veja o DESENVOLVIMENTO.md): tag vX.Y.Z, um anexo Lume-vX.Y.Z-win-x64.zip
 // com a pasta "Lume" dentro, e o SHA-256 do zip nas notas.
 
 const fs = require('fs');
