@@ -68,7 +68,10 @@ function createWindow() {
     if (win.isDestroyed()) return;
     win.webContents.send('window-visibility', win.isVisible() && !win.isMinimized());
   };
-  for (const ev of ['hide', 'show', 'minimize', 'restore']) win.on(ev, notifyVisibility);
+  win.on('hide', notifyVisibility);
+  win.on('show', notifyVisibility);
+  win.on('minimize', notifyVisibility);
+  win.on('restore', notifyVisibility);
   return win;
 }
 

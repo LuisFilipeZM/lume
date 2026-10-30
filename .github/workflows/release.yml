@@ -1,0 +1,76 @@
+# Gera o Lume.exe e cria a release quando uma tag vX.Y.Z é enviada.
+#
+# Como usar:
+#   1. Atualize "version" no package.json e escreva as novidades em .github/release-notes.md
+#   2. Faça o commit e envie para a main
+#   3. Crie e envie a tag:  git tag v1.13.0 && git push origin v1.13.0
+#   4. A release aparece como RASCUNHO em Releases: confira e clique em "Publish release".
+#      Só depois de publicada ela é oferecida pela atualização automática.
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Gerar o Lume.exe e a release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: A versão do package.json bate com a tag
+        shell: bash
+        run: |
+          V="v$(node -p "require('./package.json').version")"
+          if [ "$V" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::package.json diz $V, mas a tag é $GITHUB_REF_NAME. Atualize o package.json ou corrija a tag."
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run dist
+
+      - name: Compactar (pasta "Lume" dentro do zip) e calcular o SHA-256
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $zip = "dist\Lume-$tag-win-x64.zip"
+          Rename-Item dist\Lume-win32-x64 Lume
+          Compress-Archive -Path dist\Lume -DestinationPath $zip
+          $sha = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          "ZIP=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "SHA=$sha" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Montar as notas da release
+        shell: bash
+        run: |
+          {
+            cat .github/release-notes.md
+            echo
+            cat .github/release-notes-rodape.md
+            echo
+            echo "---"
+            # o atualizador lê o SHA-256 desta linha: não altere o formato
+            echo "SHA-256 de \`Lume-$GITHUB_REF_NAME-win-x64.zip\`: \`$SHA\`"
+          } > dist/notas.md
+          sed -i "s/{VERSAO}/$GITHUB_REF_NAME/g" dist/notas.md
+
+      - name: Criar a release (rascunho)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "$ZIP" \
+            --draft --verify-tag \
+            --title "Lume $GITHUB_REF_NAME" \
+            --notes-file dist/notas.md

@@ -37,6 +37,12 @@ export function setupLayout() {
 
 // Cria (ou devolve) a tela de alguém. local = a minha própria prévia.
 // Telas de amigos começam como prévia; onWatch/onStopWatch: botão Assistir e o ✕.
+/**
+ * @param {string} id
+ * @param {string} label
+ * @param {boolean} local
+ * @param {{ onWatch?: (id: string) => void, onStopWatch?: (id: string) => void }} [handlers]
+ */
 export function tileFor(id, label, local, { onWatch, onStopWatch } = {}) {
   let t = document.getElementById('tile-' + id);
   if (t) return t;
@@ -62,14 +68,14 @@ export function tileFor(id, label, local, { onWatch, onStopWatch } = {}) {
     ov.innerHTML = '<span class="tag">Prévia</span><button>▶ Assistir</button>';
     ov.querySelector('button').onclick = () => onWatch && onWatch(id);
     t.append(ov);
-    t.querySelector('.stopBtn').onclick = () => onStopWatch && onStopWatch(id);
+    /** @type {HTMLElement} */ (t.querySelector('.stopBtn')).onclick = () => onStopWatch && onStopWatch(id);
   }
   vol.oninput = () => { v.muted = false; v.volume = Number(vol.value); };
   const fs = () => {
     if (t.classList.contains('preview')) return;
     if (v.requestFullscreen) v.requestFullscreen();
   };
-  t.querySelector('.fsBtn').onclick = fs;
+  /** @type {HTMLElement} */ (t.querySelector('.fsBtn')).onclick = fs;
   v.ondblclick = fs;
   v.onclick = () => { if (!local && !t.classList.contains('preview')) v.muted = false; };
   $('#grid').append(t);

@@ -1,0 +1,19 @@
+{
+  // Verificação de tipos da página da sala (módulos do navegador).
+  "compilerOptions": {
+    "checkJs": true,
+    "allowJs": true,
+    "noEmit": true,
+    "strict": false,
+    "noImplicitThis": true,
+    "module": "es2022",
+    "target": "es2022",
+    "lib": ["es2022", "dom", "dom.iterable"],
+    "types": [],
+    "skipLibCheck": true,
+    "maxNodeModuleJsDepth": 0
+  },
+  "include": ["js/**/*.js", "types.d.ts"],
+  // o worklet roda noutro ambiente (AudioWorkletGlobalScope), sem os tipos do DOM
+  "exclude": ["js/pcm-worklet.js"]
+}

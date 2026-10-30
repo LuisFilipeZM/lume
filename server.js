@@ -203,7 +203,7 @@ function startServer(port = 3000, host = '0.0.0.0') {
 
     server.listen(port, host, () => {
       resolve({
-        port: server.address().port,
+        port: /** @type {import('net').AddressInfo} */ (server.address()).port,
         close() {
           clearInterval(heartbeat);
           for (const ws of wss.clients) ws.terminate();

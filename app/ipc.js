@@ -15,6 +15,7 @@ const picker = require('./capture/picker');
 const appAudio = require('./capture/app-audio');
 const { goStart, openRoom } = require('./window');
 
+/** @type {Record<string, ['start' | 'room', (...args: any[]) => any]>} */
 const CHANNELS = {
   // ---- tela inicial ----
   'host-start': ['start', (opts) => roomHost.start(opts || {})],

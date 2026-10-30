@@ -129,25 +129,37 @@ O resultado fica em `dist/Lume-win32-x64/`. Para distribuir, compacte **a pasta 
 
 ### Publicar uma versão nova
 
-O atualizador só reconhece releases que seguem este padrão:
+O GitHub Actions gera o executável e a release a partir de uma tag (`.github/workflows/release.yml`):
 
-1. Atualize `"version"` no `package.json`, por exemplo `1.10.0`.
-2. Gere e compacte, no PowerShell, dentro da pasta do projeto:
-   ```powershell
-   npm run dist
-   Rename-Item dist\Lume-win32-x64 Lume
-   Compress-Archive -Path dist\Lume -DestinationPath dist\Lume-v1.10.0-win-x64.zip
-   Get-FileHash dist\Lume-v1.10.0-win-x64.zip -Algorithm SHA256
+1. Atualize `"version"` no `package.json`, por exemplo `1.13.0`.
+2. Escreva as novidades em `.github/release-notes.md`. As instruções de download e o aviso de segurança vêm de `.github/release-notes-rodape.md`.
+3. Faça o commit, envie para a `main` e crie a tag com a mesma versão:
+   ```bash
+   git tag v1.13.0
+   git push origin v1.13.0
    ```
-   Dentro do zip precisa haver a pasta **`Lume`** com o `Lume.exe`.
-3. Crie a release no GitHub:
-   - **tag:** `v1.10.0`;
-   - **anexo:** `Lume-v1.10.0-win-x64.zip`;
-   - **nas notas, esta linha com o hash:**
-     ```
-     SHA-256 de `Lume-v1.10.0-win-x64.zip`: `<hash do Get-FileHash>`
-     ```
-4. Não marque como "pre-release": o atualizador ignora pré-releases e rascunhos.
+4. Em **Actions**, o workflow **Release**:
+   - confere se a tag bate com o `package.json`;
+   - roda a verificação de tipos e os testes rápidos;
+   - gera o `.exe`, compacta e calcula o SHA-256;
+   - cria a release como **rascunho**.
+5. Em **Releases**, confira o rascunho e clique em **Publish release**. Só depois de publicada a versão é oferecida pela atualização automática.
+
+**Se precisar publicar à mão**, o atualizador só reconhece releases neste padrão:
+- tag `vX.Y.Z`, sem marcar "pre-release";
+- anexo `Lume-vX.Y.Z-win-x64.zip`, com a pasta **`Lume`** e o `Lume.exe` dentro;
+- nas notas, a linha:
+  ```
+  SHA-256 de `Lume-vX.Y.Z-win-x64.zip`: `<hash>`
+  ```
+
+Para gerar o zip e o hash no PowerShell:
+```powershell
+npm run dist
+Rename-Item dist\Lume-win32-x64 Lume
+Compress-Archive -Path dist\Lume -DestinationPath dist\Lume-vX.Y.Z-win-x64.zip
+Get-FileHash dist\Lume-vX.Y.Z-win-x64.zip -Algorithm SHA256
+```
 
 ### Só o servidor, sem o app
 
@@ -162,13 +174,16 @@ Abre em http://localhost:3000. Para compartilhar pelo navegador fora do seu PC �
 Requer Node.js 22 ou mais novo.
 
 ```bash
-npm test            # rápidos (segundos): servidor, senha, bloqueio e atualizador
+npm run typecheck   # verificação de tipos do JavaScript (TypeScript, sem compilar nada)
+npm test            # rápidos (segundos): servidor, senha, bloqueio, canais e atualizador
 npm run test:e2e    # completos (~1 min): sala no navegador e app Electron, incluindo o seletor
-npm run test:all    # os dois
+npm run test:all    # tudo
 ```
 
 - Os testes completos usam o Playwright. Na primeira vez, rode `npx playwright install chromium`.
 - Eles abrem o app com uma pasta de dados própria, então funcionam mesmo com o Lume aberto.
+- No GitHub, o workflow **Testes** (`.github/workflows/ci.yml`) roda tudo isso a cada envio para a `main` e em pull requests.
+- **Verificação de tipos:** o `// @ts-check` não é usado arquivo a arquivo. As configurações ficam em `jsconfig.json` (app, servidor, atualizador) e `web/room/jsconfig.json` (página da sala), e o VS Code usa as mesmas para apontar erros enquanto você edita. Os tipos da API que o app oferece à página ficam em `web/room/types.d.ts`.
 - **No Linux**, rode os completos com um servidor gráfico virtual: `xvfb-run -a npm run test:e2e`.
 
 **O que fica de fora** (só dá para testar à mão, no Windows):

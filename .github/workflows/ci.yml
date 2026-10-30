@@ -1,0 +1,41 @@
+# Testes a cada envio para a main e em pull requests.
+name: Testes
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  rapidos:
+    name: Tipos e testes rápidos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  completos:
+    name: Testes completos (navegador e app)
+    runs-on: ubuntu-latest
+    needs: rapidos
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Navegador dos testes e servidor gráfico virtual
+        run: |
+          npx playwright install --with-deps chromium
+          sudo apt-get install -y xvfb
+      - run: xvfb-run -a npm run test:e2e

@@ -1,0 +1,18 @@
+{
+  // Verificação de tipos do processo principal, servidor e atualizador (npm run typecheck).
+  // Só confere o JavaScript, não gera nada.
+  "compilerOptions": {
+    "checkJs": true,
+    "allowJs": true,
+    "noEmit": true,
+    "strict": false,
+    "noImplicitThis": true,
+    "module": "commonjs",
+    "target": "es2022",
+    "lib": ["es2022", "dom"],
+    "types": ["node"],
+    "skipLibCheck": true,
+    "maxNodeModuleJsDepth": 0
+  },
+  "include": ["app/**/*.js", "server.js", "updater.js", "preload.js", "picker-preload.js"]
+}

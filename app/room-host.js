@@ -53,7 +53,7 @@ function startTunnel(local) {
     };
     proc.stdout.on('data', onData);
     proc.stderr.on('data', onData);
-    proc.on('error', (e) => finish({
+    proc.on('error', (/** @type {NodeJS.ErrnoException} */ e) => finish({
       error: e.code === 'ENOENT'
         ? 'cloudflared não encontrado. Instale com: winget install --id Cloudflare.cloudflared (e reabra o app).'
         : e.message,

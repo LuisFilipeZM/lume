@@ -79,6 +79,12 @@ async function checkLatest(fetchImpl, currentVersion, apiUrl = API_LATEST) {
 }
 
 // Baixa para dest conferindo tamanho e SHA-256. onProgress(0..1)
+/**
+ * @param {(url: string, init?: any) => Promise<any>} fetchImpl
+ * @param {{ url: string, size?: number, sha256?: string | null }} info
+ * @param {string} dest
+ * @param {(fraction: number) => void} [onProgress]
+ */
 async function download(fetchImpl, info, dest, onProgress = () => {}) {
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   const res = await fetchImpl(info.url);
@@ -94,11 +100,11 @@ async function download(fetchImpl, info, dest, onProgress = () => {}) {
       if (done) break;
       hash.update(value);
       received += value.length;
-      if (!out.write(value)) await new Promise((r) => out.once('drain', r));
+      if (!out.write(value)) await new Promise((r) => out.once('drain', () => r(undefined)));
       if (total) onProgress(Math.min(1, received / total));
     }
   } finally {
-    await new Promise((r) => out.end(r));
+    await new Promise((r) => out.end(() => r(undefined)));
   }
   if (info.size && received !== info.size) {
     throw new Error(`arquivo incompleto (${received} de ${info.size} bytes)`);

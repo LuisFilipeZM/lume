@@ -29,7 +29,7 @@ function start(sourceId, target) {
   if (process.platform !== 'win32') return { ok: false, error: 'só no Windows' };
   stop();
   let LoopbackCapture;
-  try { ({ LoopbackCapture } = require('loopback-capture')); }
+  try { ({ LoopbackCapture } = /** @type {any} */ (require('loopback-capture'))); } // tipos do pacote não batem com o CommonJS
   catch (e) { return { ok: false, error: 'módulo de áudio indisponível: ' + e.message }; }
 
   const send = (chunk) => {

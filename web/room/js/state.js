@@ -9,6 +9,20 @@ export const PRESETS = {
 // Prévia enviada a quem ainda não clicou em "Assistir": pequena, 2 quadros por segundo e sem áudio
 export const PREVIEW = { h: 180, fps: 2, br: 150000 };
 
+/**
+ * Tipo declarado: a verificação (npm run typecheck) aponta campos digitados errado.
+ * @typedef {{ w: number, h: number, fps: number, br: number }} Preset
+ * @type {{
+ *   ws: WebSocket | null, myId: string | null, myName: string, room: string, roomLocked: boolean,
+ *   leaving: boolean, iceServers: RTCIceServer[], peers: Map<string, { name: string, sharing: boolean }>,
+ *   sharing: boolean, shareStream: MediaStream | null, previewTrack: MediaStreamTrack | null, preset: Preset,
+ *   sendPcs: Map<string, RTCPeerConnection>,
+ *   viewStates: Map<string, { w: number, h: number, visible: boolean, watching: boolean }>,
+ *   recvPcs: Map<string, RTCPeerConnection>, watching: Set<string>,
+ *   lastView: Map<string, { w: number, h: number, visible: boolean, watching: boolean }>,
+ *   windowVisible: boolean,
+ * }}
+ */
 export const S = {
   // conexão e sala
   ws: null,

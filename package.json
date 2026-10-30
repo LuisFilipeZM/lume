@@ -7,10 +7,11 @@
   "scripts": {
     "start": "electron .",
     "server": "node server.js",
+    "typecheck": "tsc -p jsconfig.json && tsc -p web/room/jsconfig.json",
     "test": "node --test \"tests/unit/*.test.js\"",
     "test:e2e": "node --test --test-concurrency=1 \"tests/e2e/*.test.js\"",
-    "test:all": "npm test && npm run test:e2e",
-    "dist": "electron-packager . Lume --platform=win32 --arch=x64 --out=dist --overwrite --icon=build/icon.ico --win32metadata.ProductName=Lume --win32metadata.FileDescription=Lume --win32metadata.CompanyName=Lume --win32metadata.InternalName=Lume --asar.unpack=**/*.node --ignore=^/tests"
+    "test:all": "npm run typecheck && npm test && npm run test:e2e",
+    "dist": "electron-packager . Lume --platform=win32 --arch=x64 --out=dist --overwrite --icon=build/icon.ico --win32metadata.ProductName=Lume --win32metadata.FileDescription=Lume --win32metadata.CompanyName=Lume --win32metadata.InternalName=Lume --asar.unpack=**/*.node --ignore=^/tests --ignore=/\\.github"
   },
   "dependencies": {
     "koffi": "3.3.5",
@@ -19,7 +20,9 @@
   },
   "devDependencies": {
     "@electron/packager": "latest",
+    "@types/node": "22.20.5",
     "electron": "latest",
-    "playwright": "1.63.0"
+    "playwright": "1.63.0",
+    "typescript": "5.9.3"
   }
 }
