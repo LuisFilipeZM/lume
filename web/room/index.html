@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lume</title>
+<link rel="stylesheet" href="./room.css">
+</head>
+<body>
+
+<div id="join">
+  <h1>✨ Lume</h1>
+  <p>Compartilhe sua tela com áudio com os amigos, direto do navegador.</p>
+  <div><label for="name">Seu nome</label><input id="name" type="text" maxlength="24" style="width:100%"></div>
+  <div><label for="room">Sala</label><input id="room" type="text" maxlength="40" style="width:100%"></div>
+  <div><label for="pass">Senha (opcional)</label><input id="pass" type="password" maxlength="64" style="width:100%" autocomplete="off" placeholder="Em branco = sala aberta"></div>
+  <p id="joinErr" class="err hidden"></p>
+  <button id="joinBtn">Entrar na sala</button>
+  <p>Quem cria a sala define a senha. Sem senha, quem tiver o link consegue entrar. Mande a senha separada do link.</p>
+</div>
+
+<div id="app" class="hidden">
+  <header>
+    <span class="room">✨ <span id="roomName"></span></span>
+    <span id="lockBadge" class="hidden" title="Só entra quem tiver a senha">🔒 com senha</span>
+    <input id="linkBox" type="text" readonly title="Link da sala (clique para selecionar)">
+    <button class="secondary" id="copyBtn">Copiar link</button>
+    <span class="spacer"></span>
+    <button class="secondary" id="peopleBtn" title="Mostrar ou recolher a lista de pessoas na sala">👥 <span id="peopleCount">1</span></button>
+    <button class="danger" id="leaveBtn">Sair</button>
+  </header>
+  <main>
+    <div id="stage">
+      <div id="empty">Ninguém está compartilhando ainda.<br>Clique em “Compartilhar tela” para começar.</div>
+      <div id="grid"></div>
+    </div>
+    <aside id="aside">
+      <div class="asideHead">
+        <h3>Na sala</h3>
+        <button class="iconBtn" id="collapseBtn" title="Recolher (mais espaço para as telas)">»</button>
+      </div>
+      <ul id="peers"></ul>
+    </aside>
+  </main>
+  <footer>
+    <button id="shareBtn">🖥️ Compartilhar tela</button>
+    <label title="Janela: só o som desse aplicativo. Tela inteira: todo o som do PC, menos o do Lume."><input type="checkbox" id="audioChk" checked> Áudio</label>
+    <label title="Sons de entrada, saída e compartilhamento"><input type="checkbox" id="soundChk" checked> Sons</label>
+    <select id="qualitySel" title="Qualidade">
+      <option value="720p30">720p · 30 fps</option>
+      <option value="1080p30">1080p · 30 fps</option>
+      <option value="1080p60" selected>1080p · 60 fps</option>
+    </select>
+    <select id="codecSel" title="Codec de vídeo">
+      <option value="h264" selected>Codec: H.264 (usa a placa de vídeo)</option>
+      <option value="vp9">Codec: VP9</option>
+      <option value="auto">Codec: automático</option>
+    </select>
+    <select id="modeSel" title="Prioridade">
+      <option value="motion" selected>Prioridade: movimento (jogos/vídeo)</option>
+      <option value="detail">Prioridade: nitidez (texto/slides)</option>
+    </select>
+    <span id="note"></span>
+  </footer>
+</div>
+
+<div id="toast" class="hidden"></div>
+
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>

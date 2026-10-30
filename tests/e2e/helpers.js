@@ -59,7 +59,7 @@ async function enterRoom(browser, base, room, name, { password = '', share = fal
 // Estatísticas do que um espectador está recebendo (resolução, quadros, áudio)
 function receiveStats(page) {
   return page.evaluate(async () => {
-    const pc = [...recvPcs.values()][0];
+    const pc = [...window.__lume.S.recvPcs.values()][0];
     if (!pc) return null;
     const st = await pc.getStats();
     let v = {}, a = {};

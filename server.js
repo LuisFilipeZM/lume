@@ -12,7 +12,36 @@ const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 
 const MAX_PER_ROOM = 12;
-const INDEX = path.join(__dirname, 'public', 'index.html');
+const WEB = path.join(__dirname, 'web', 'room'); // arquivos da página da sala
+
+// ---------- arquivos da página ----------
+// Serve só o que está dentro de web/room, só GET/HEAD e só tipos conhecidos.
+const TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+};
+
+function serveStatic(req, res) {
+  const fail = (code, msg) => { res.writeHead(code, { 'Content-Type': 'text/plain; charset=utf-8' }); res.end(msg); };
+  if (req.method !== 'GET' && req.method !== 'HEAD') return fail(405, 'Método não permitido');
+  let rel;
+  try { rel = decodeURIComponent(new URL(req.url, 'http://lume').pathname); } catch { return fail(400, 'Endereço inválido'); }
+  if (rel.endsWith('/')) rel += 'index.html';
+  const file = path.normalize(path.join(WEB, rel));
+  // nada fora da pasta (inclui "..", barras invertidas no Windows e caracteres estranhos)
+  if (!file.startsWith(WEB + path.sep) || rel.includes('\0')) return fail(404, 'Não encontrado');
+  const type = TYPES[path.extname(file).toLowerCase()];
+  if (!type) return fail(404, 'Não encontrado');
+  fs.readFile(file, (err, data) => {
+    if (err) return fail(404, 'Não encontrado');
+    res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff' });
+    res.end(req.method === 'HEAD' ? undefined : data);
+  });
+}
 
 const rooms = new Map(); // sala -> { members: Map(id -> { id, name, sharing, ws }), pass: { salt, hash } | null }
 
@@ -77,22 +106,7 @@ function broadcast(members, obj, exceptId) {
 
 function startServer(port = 3000, host = '0.0.0.0') {
   return new Promise((resolve, reject) => {
-    const server = http.createServer((req, res) => {
-      const url = req.url.split('?')[0];
-      if (url === '/' || url === '/index.html') {
-        fs.readFile(INDEX, (err, data) => {
-          if (err) {
-            res.writeHead(500);
-            return res.end('Erro ao ler a página.');
-          }
-          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
-          res.end(data);
-        });
-      } else {
-        res.writeHead(404);
-        res.end('Não encontrado');
-      }
-    });
+    const server = http.createServer(serveStatic);
 
     const wss = new WebSocketServer({ server, maxPayload: 64 * 1024 });
 

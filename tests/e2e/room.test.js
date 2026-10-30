@@ -36,7 +36,7 @@ test('compartilhar: prévia leve por padrão, Assistir libera qualidade total e 
   assert.ok(r.h > 0 && r.h <= 200, `prévia em baixa resolução (${r.w}x${r.h})`);
   assert.ok(r.fps <= 4, `prévia com poucos quadros (${r.fps}/s)`);
   assert.equal(r.audioPerSec, 0, 'prévia sem áudio');
-  assert.match(await ana.innerText(`#tile-${await ana.evaluate(() => myId)} .label`), /ninguém assistindo/);
+  assert.match(await ana.innerText(`#tile-${await ana.evaluate(() => window.__lume.S.myId)} .label`), /ninguém assistindo/);
 
   // 2) Assistir: resolução maior, ~30 quadros por segundo e áudio
   await bia.click('.tile .overlay button');
@@ -46,7 +46,7 @@ test('compartilhar: prévia leve por padrão, Assistir libera qualidade total e 
   assert.ok(r.h >= 360, `qualidade total (${r.w}x${r.h})`);
   assert.ok(r.fps >= 20, `vídeo fluido (${r.fps}/s)`);
   assert.ok(r.audioPerSec >= 40, `áudio chegando (${r.audioPerSec} pacotes/s)`);
-  assert.match(await ana.innerText(`#tile-${await ana.evaluate(() => myId)} .label`), /1 pessoa assistindo/);
+  assert.match(await ana.innerText(`#tile-${await ana.evaluate(() => window.__lume.S.myId)} .label`), /1 pessoa assistindo/);
 
   // 3) ✕ volta para a prévia
   await bia.hover('.tile');
@@ -68,6 +68,69 @@ test('compartilhar: prévia leve por padrão, Assistir libera qualidade total e 
   assert.equal(await caio.locator('.tile').count(), 0);
 
   for (const p of [ana, bia, caio]) assert.deepEqual(p.errors, []);
+});
+
+// Simula o app: o seletor confiável devolve "info" e o processo principal manda áudio PCM (tom de 440 Hz)
+function fakeDesktop(info) {
+  return `
+window.__stops = 0; let __cb = null, __t = null;
+window.electronAPI = {
+  isDesktop: true, getPublicUrl: async () => null, copyText: async () => true, goHome: async () => {},
+  onWindowVisibility: () => {}, onAppAudio: (cb) => { __cb = cb; },
+  stopAppAudio: async () => { window.__stops++; clearInterval(__t); },
+  getShareInfo: async () => (${JSON.stringify(info)}),
+};
+const __gdm = navigator.mediaDevices.getDisplayMedia;
+navigator.mediaDevices.getDisplayMedia = async (c) => {
+  const info = ${JSON.stringify(info)};
+  if (info.audio === 'app' || info.audio === 'system') {
+    let ph = 0;
+    __t = setInterval(() => {
+      const s = new Int16Array(960);
+      for (let i = 0; i < 480; i++) { const v = Math.round(Math.sin(ph) * 12000); ph += 2 * Math.PI * 440 / 48000; s[2 * i] = v; s[2 * i + 1] = v; }
+      __cb && __cb(new Uint8Array(s.buffer));
+    }, 10);
+  }
+  return __gdm({ ...c, audio: false }); // vídeo simulado, sem o áudio do "sistema"
+};`;
+}
+
+test('áudio por aplicativo: o PCM do app vira o áudio da transmissão', { timeout: 60000 }, async () => {
+  const casos = [
+    { info: { kind: 'window', audioChosen: true, audio: 'app' }, audio: true, aviso: /só o som deste aplicativo/ },
+    { info: { kind: 'window', audioChosen: true, audio: null }, audio: false, aviso: /Não consegui capturar só o áudio/ },
+    { info: { kind: 'window', audioChosen: false, audio: null }, audio: false, aviso: null },
+  ];
+  for (const [i, c] of casos.entries()) {
+    const ana = await enterRoom(browser, srv.base, 'pcm' + i, 'Ana', { share: true });
+    await ana.addInitScript(fakeDesktop(c.info));
+    await ana.reload();
+    await ana.fill('#name', 'Ana');
+    await ana.click('#joinBtn');
+    await ana.waitForSelector('#app:not(.hidden)');
+    const bia = await enterRoom(browser, srv.base, 'pcm' + i, 'Bia');
+    await bia.waitForSelector('#app:not(.hidden)');
+
+    await ana.click('#shareBtn');
+    await bia.waitForSelector('.tile video');
+    await sleep(800);
+    const aviso = (await ana.isVisible('#toast')) ? await ana.innerText('#toast') : '';
+    if (c.aviso) assert.match(aviso, c.aviso, JSON.stringify(c.info));
+    else assert.equal(aviso, '', 'sem aviso quando o áudio foi desmarcado no seletor');
+
+    await bia.click('.tile .overlay button');
+    await sleep(4000);
+    const r = await receiveRate(bia);
+    assert.equal(r.audioPerSec > 30, c.audio, `${JSON.stringify(c.info)}: ${r.audioPerSec} pacotes de áudio/s`);
+
+    await ana.click('#shareBtn');
+    await sleep(300);
+    assert.equal(await ana.evaluate(() => window.__lume.pcmActive()), false, 'áudio do app fechado ao parar');
+    assert.ok((await ana.evaluate(() => window.__stops)) >= 1, 'pediu ao app para parar o áudio');
+    assert.deepEqual(ana.errors, []);
+    await ana.context().close();
+    await bia.context().close();
+  }
 });
 
 test('senha: erro aparece no formulário e a senha certa entra', { timeout: 30000 }, async () => {
@@ -98,7 +161,7 @@ test('senha: erro aparece no formulário e a senha certa entra', { timeout: 3000
 test('lista de pessoas: recolhe, as telas crescem e a escolha fica salva', { timeout: 30000 }, async () => {
   const ana = await enterRoom(browser, srv.base, 'lado', 'Ana', { viewport: { width: 1280, height: 720 } });
   await ana.waitForSelector('#app:not(.hidden)');
-  await ana.evaluate(() => { for (let i = 0; i < 2; i++) tileFor('x' + i, 't' + i, true); updateEmpty(); });
+  await ana.evaluate(() => { const { tileFor, updateEmpty } = window.__lume; for (let i = 0; i < 2; i++) tileFor('x' + i, 't' + i, true); updateEmpty(); });
   await sleep(300);
   const largura = () => ana.evaluate(() => Math.round(document.querySelector('.tile').getBoundingClientRect().width));
   const antes = await largura();

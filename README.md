@@ -268,10 +268,22 @@ picker-preload.js       ponte do seletor, isolada da página da sala
 server.js               servidor de sinalização (HTTP + WebSocket, salas e senha)
 updater.js              atualização: consulta, download conferido, extração e troca de arquivos
 start.html              tela inicial do app (criar ou entrar em sala)
-public/index.html       sala: interface, WebRTC, layout e sons
+web/room/                página da sala (servida pelo server.js, no app e no navegador)
+  index.html, room.css  estrutura e visual
+  js/main.js            entrada na sala, mensagens do servidor, liga as partes
+  js/state.js           estado compartilhado e presets de qualidade
+  js/signaling.js       conexão com o servidor
+  js/share.js           compartilhar / parar
+  js/rtc-send.js        envio para cada espectador (prévia, qualidade sob medida, codec)
+  js/rtc-recv.js        recepção e o botão Assistir
+  js/views.js           o que o espectador informa (tamanho, visibilidade, assistindo)
+  js/pcm-audio.js       áudio por aplicativo (+ pcm-worklet.js)
+  js/layout.js, peers.js, link.js, sounds.js, util.js
 build/                  ícones do app e alternativas
 tests/unit/             testes rápidos (node:test)
 tests/e2e/              testes completos (Playwright: navegador e app Electron)
 ```
+
+**A página da sala** usa módulos JavaScript nativos (`<script type="module">`), sem bundler nem etapa de build: o servidor entrega os arquivos de `web/room/` como estão. Ele só serve o que está dentro dessa pasta, só tipos conhecidos (`.html`, `.js`, `.css`, imagens) e recusa qualquer caminho que tente sair dela.
 
 **Para adicionar um canal entre a página e o app:** declare-o na tabela de `app/ipc.js`, dizendo quem pode chamá-lo (`start` ou `room`), e exponha-o no `preload.js`. O teste `tests/unit/ipc.test.js` falha se os dois não baterem.

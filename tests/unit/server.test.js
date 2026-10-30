@@ -127,10 +127,39 @@ test('sala cheia recusa a 13ª pessoa', async () => {
   assert.match(r.m.message, /cheia/);
 });
 
-test('serve a página da sala e responde 404 para o resto', async () => {
+test('serve a página da sala e os arquivos dela, com o tipo certo', async () => {
   const base = `http://127.0.0.1:${srv.port}`;
   const page = await fetch(base + '/?room=x');
   assert.equal(page.status, 200);
+  assert.match(page.headers.get('content-type'), /text\/html/);
   assert.match(await page.text(), /<title>Lume<\/title>/);
-  assert.equal((await fetch(base + '/../main.js')).status, 404);
+  const css = await fetch(base + '/room.css');
+  assert.equal(css.status, 200);
+  assert.match(css.headers.get('content-type'), /text\/css/);
+  const js = await fetch(base + '/js/main.js');
+  assert.equal(js.status, 200);
+  assert.match(js.headers.get('content-type'), /javascript/, 'módulos precisam do tipo JavaScript');
+  assert.equal(js.headers.get('x-content-type-options'), 'nosniff');
+});
+
+// Pedido HTTP "cru", sem o fetch normalizar o caminho
+function rawGet(pathname, method = 'GET') {
+  return new Promise((resolve, reject) => {
+    const req = require('http').request({ host: '127.0.0.1', port: srv.port, path: pathname, method }, (res) => {
+      res.resume();
+      res.on('end', () => resolve(res.statusCode));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+test('não serve nada fora da pasta da página', async () => {
+  for (const p of ['/../server.js', '/..%2fserver.js', '/%2e%2e/server.js', '/..%5c..%5cserver.js',
+    '/js/../../server.js', '/../package.json', '/x%00.js', '/js/main.js.bak', '/nao-existe.js']) {
+    assert.equal(await rawGet(p), 404, p);
+  }
+  assert.equal(await rawGet('/%E0%A4%A', 'GET'), 400, 'endereço mal formado');
+  assert.equal(await rawGet('/', 'POST'), 405, 'só GET/HEAD');
+  assert.equal(await rawGet('/', 'HEAD'), 200);
 });
