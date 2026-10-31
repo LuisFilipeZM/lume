@@ -47,7 +47,8 @@ flowchart LR
    - quem compartilha envia a cada pessoa só uma prévia leve, sem som;
    - quem clica em **Assistir** passa a receber a qualidade total com áudio (até 1080p60), ajustada ao tamanho da tela dela.
 5. **Seletor de tela confiável:** toda captura passa por uma janela do próprio Lume, que mostra quem está pedindo. Nenhuma página captura sua tela ou seu áudio sem a sua escolha.
-6. **Áudio certo:**
+6. **Mesma versão:** o app só entra em salas da mesma versão do Lume. Com versões diferentes, aparece o aviso de quem precisa atualizar. Quem assiste pelo navegador sempre recebe a versão da sala.
+7. **Áudio certo:**
    - ao compartilhar uma janela, vai só o som daquele aplicativo;
    - na tela inteira, vai todo o som do PC menos o do próprio Lume.
 

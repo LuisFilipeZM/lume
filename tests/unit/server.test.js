@@ -172,3 +172,36 @@ test('por padrão escuta só nesta máquina (127.0.0.1)', async () => {
     h.close();
   }
 });
+
+// Entra mandando a versão do app (como o app faz). Sem versão = navegador.
+function joinWithVersion(room, appVersion) {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(url);
+    open.push(ws);
+    ws.on('error', reject);
+    ws.on('open', () => ws.send(JSON.stringify({ type: 'join', room, name: 'App', appVersion })));
+    ws.on('message', (d) => {
+      const m = JSON.parse(d);
+      if (m.type === 'welcome' || m.type === 'error') resolve(m);
+    });
+  });
+}
+
+test('informa a versão em /versao', async () => {
+  const res = await fetch(`http://127.0.0.1:${srv.port}/versao`);
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { app: 'lume', version: require('../../package.json').version });
+});
+
+test('recusa app de outra versão e aceita a mesma versão e o navegador', async () => {
+  const { VERSION } = require('../../server');
+  const outra = await joinWithVersion('versoes', '0.0.1');
+  assert.equal(outra.type, 'error');
+  assert.equal(outra.code, 'version-mismatch');
+  assert.match(outra.message, /v0\.0\.1/);
+  const antiga = await joinWithVersion('versoes', 'antiga');
+  assert.equal(antiga.code, 'version-mismatch');
+  assert.match(antiga.message, /uma versão antiga/);
+  assert.equal((await joinWithVersion('versoes', VERSION)).type, 'welcome');
+  assert.equal((await joinWithVersion('versoes', undefined)).type, 'welcome');
+});

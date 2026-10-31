@@ -12,6 +12,9 @@ const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 
 const MAX_PER_ROOM = 12;
+// Só pessoas com a mesma versão do Lume se conectam. O app avisa a versão dele ao entrar
+// (appVersion); no navegador a página vem deste servidor, então é sempre a mesma versão.
+const VERSION = String(JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version);
 const WEB = path.join(__dirname, 'web', 'room'); // arquivos da página da sala
 
 // ---------- arquivos da página ----------
@@ -41,6 +44,17 @@ function serveStatic(req, res) {
     res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff' });
     res.end(req.method === 'HEAD' ? undefined : data);
   });
+}
+
+// Endereço que o app consulta antes de entrar na sala de outra pessoa
+function handleHttp(req, res) {
+  let pathname = '';
+  try { pathname = new URL(req.url, 'http://lume').pathname; } catch {}
+  if (pathname === '/versao' && (req.method === 'GET' || req.method === 'HEAD')) {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+    return res.end(req.method === 'HEAD' ? undefined : JSON.stringify({ app: 'lume', version: VERSION }));
+  }
+  serveStatic(req, res);
 }
 
 const rooms = new Map(); // sala -> { members: Map(id -> { id, name, sharing, ws }), pass: { salt, hash } | null }
@@ -108,7 +122,7 @@ function broadcast(members, obj, exceptId) {
 // da Cloudflare, que conecta localmente. Para aceitar a rede local, passe host = '0.0.0.0'.
 function startServer(port = 3000, host = '127.0.0.1') {
   return new Promise((resolve, reject) => {
-    const server = http.createServer(serveStatic);
+    const server = http.createServer(handleHttp);
 
     const wss = new WebSocketServer({ server, maxPayload: 64 * 1024 });
 
@@ -130,6 +144,15 @@ function startServer(port = 3000, host = '127.0.0.1') {
           const room = String(m.room || '').trim().slice(0, 40);
           const name = String(m.name || '').trim().slice(0, 24) || 'Convidado';
           if (!room) return send(ws, { type: 'error', message: 'Informe o nome da sala.' });
+          if (m.appVersion !== undefined && m.appVersion !== VERSION) {
+            const sua = /^\d+\.\d+\.\d+$/.test(String(m.appVersion)) ? 'v' + m.appVersion : 'uma versão antiga';
+            return send(ws, {
+              type: 'error',
+              code: 'version-mismatch',
+              version: VERSION,
+              message: `Versão diferente: esta sala está no Lume v${VERSION} e o seu está em ${sua}. Todos precisam estar na mesma versão (atualize pelo ícone da bandeja → Procurar atualizações).`,
+            });
+          }
           const pw = typeof m.password === 'string' ? m.password.slice(0, 64) : '';
 
           let r = rooms.get(room);
@@ -219,7 +242,7 @@ function startServer(port = 3000, host = '127.0.0.1') {
   });
 }
 
-module.exports = { startServer };
+module.exports = { startServer, VERSION };
 
 if (require.main === module) {
   const PORT = Number(process.env.PORT) || 3000;

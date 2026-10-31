@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   stopAppAudio: () => ipcRenderer.invoke('app-audio-stop'),
   onAppAudio: (cb) => ipcRenderer.on('app-audio-data', (_e, chunk) => cb(chunk)),
   goHome: () => ipcRenderer.invoke('go-home'),
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   // tela inicial
   hostStart: (opts) => ipcRenderer.invoke('host-start', opts),
   openHost: () => ipcRenderer.invoke('open-host'),

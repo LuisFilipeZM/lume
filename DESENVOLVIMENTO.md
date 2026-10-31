@@ -127,6 +127,7 @@ app/                    processo principal do Electron
   ipc.js                todos os canais chamados pelas páginas e quem pode chamar cada um
   window.js             janela, bandeja e navegação (tela inicial <-> sala)
   room-host.js          servidor da sala nesta máquina e túnel público
+  room-version.js       confere se a sala de outra pessoa está na mesma versão (/versao)
   updates.js            avisos e fluxo de atualização
   capture/picker.js     seletor de tela confiável (toda captura passa por ele)
   capture/app-audio.js  áudio por aplicativo

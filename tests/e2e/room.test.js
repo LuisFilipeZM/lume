@@ -79,6 +79,7 @@ window.electronAPI = {
   onWindowVisibility: () => {}, onAppAudio: (cb) => { __cb = cb; },
   stopAppAudio: async () => { window.__stops++; clearInterval(__t); },
   getShareInfo: async () => (${JSON.stringify(info)}),
+  getAppVersion: async () => ${JSON.stringify(require('../../package.json').version)},
 };
 const __gdm = navigator.mediaDevices.getDisplayMedia;
 navigator.mediaDevices.getDisplayMedia = async (c) => {
@@ -177,4 +178,15 @@ test('lista de pessoas: recolhe, as telas crescem e a escolha fica salva', { tim
   assert.equal(await ana.isVisible('#aside'), false, 'continua recolhida depois de recarregar');
   await ana.click('#peopleBtn');
   assert.equal(await ana.isVisible('#aside'), true);
+});
+
+test('versão: o app de outra versão é recusado na sala, com aviso', async () => {
+  const page = await browser.newPage();
+  await page.addInitScript(`window.electronAPI = { isDesktop: true, getAppVersion: async () => '0.0.1' };`);
+  await page.goto(srv.base + '/?room=versao');
+  await page.fill('#name', 'Ana');
+  await page.click('#joinBtn');
+  await page.waitForFunction(() => /Versão diferente/.test(document.body.innerText));
+  assert.ok(await page.locator('#app.hidden').count());
+  await page.close();
 });

@@ -3,6 +3,7 @@
 // O que o app (preload.js) oferece à página da sala. No navegador comum, window.electronAPI não existe.
 interface ElectronAPI {
   isDesktop: true;
+  getAppVersion?(): Promise<string>;
   getShareInfo(): Promise<{ kind: 'screen' | 'window'; audioChosen: boolean; audio: 'app' | 'system' | 'loopback' | null } | null>;
   getPublicUrl(): Promise<string | null>;
   copyText(text: string): Promise<boolean>;

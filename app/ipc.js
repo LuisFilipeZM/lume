@@ -14,6 +14,7 @@ const roomHost = require('./room-host');
 const picker = require('./capture/picker');
 const appAudio = require('./capture/app-audio');
 const { goStart, openRoom } = require('./window');
+const { checkRoomVersion } = require('./room-version');
 
 /** @type {Record<string, ['start' | 'room', (...args: any[]) => any]>} */
 const CHANNELS = {
@@ -30,6 +31,8 @@ const CHANNELS = {
       try { u = new URL(candidate); break; } catch {}
     }
     if (!u || !/^https?:$/.test(u.protocol)) return { ok: false, error: 'Link inválido.' };
+    const v = await checkRoomVersion(u.origin, app.getVersion());
+    if ('error' in v) return { ok: false, error: v.error };
     try {
       await openRoom(u.toString());
     } catch (err) {
@@ -41,6 +44,7 @@ const CHANNELS = {
 
   // ---- sala ----
   'go-home': ['room', () => goStart()],
+  'get-app-version': ['room', () => app.getVersion()],          // o servidor recusa versões diferentes
   'copy-text': ['room', (text) => { clipboard.writeText(String(text).slice(0, 2000)); return true; }],
   'get-public-url': ['room', () => roomHost.getPublicUrl()],
   'get-share-info': ['room', () => picker.consumeShareInfo()], // o que foi escolhido no seletor
